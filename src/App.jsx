@@ -179,7 +179,47 @@ function renderCalibrationCanvas(canvas, config) {
   ctx.setLineDash([]);
 }
 
+
+function TemplateSingleLabelPreview({ tpl, onClick }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const scale = MM;
+    const w = 35 * scale;
+    const h = 22 * scale;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    drawLabel(
+      ctx,
+      0,
+      0,
+      { labelWidth: 35, labelHeight: 22, inset: 1.0 },
+      {
+        brand: tpl.brand || '',
+        product: (tpl.product || '').trim() || 'SẢN PHẨM',
+        price: (tpl.price || '').trim() || '0đ',
+        barcode: (tpl.barcode || '').trim() || '0',
+      }
+    );
+  }, [tpl]);
+
+  return (
+    <div className="tpl-single-label-wrapper" onClick={onClick} title="Bấm để nạp mẫu này vào bàn in">
+      <canvas ref={canvasRef} className="tpl-single-label-canvas" />
+      <div className="tpl-single-label-tag">
+        <span>🔍 Mẫu tem đơn (35×22mm)</span>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+
   const canvasRef = useRef(null);
   const [mode, setMode] = useState('label'); // 'label' | 'templates' | 'calibration'
   
@@ -969,19 +1009,12 @@ export default function App() {
                   >
                     <div>
                       <div className="tpl-card-top">
-                        <span className="tpl-brand-badge">{tpl.brand || 'KHÔNG CÓ THƯƠNG HIỆU'}</span>
-                        <span className="tpl-price-tag">{tpl.price}</span>
+                        <h3 className="tpl-card-title">{tpl.name}</h3>
+                        <span className="tpl-copies-badge">Mặc định: {tpl.copies || 1} hàng ({ (tpl.copies || 1) * 2 } tem)</span>
                       </div>
 
-                      <h3 className="tpl-card-title">{tpl.name}</h3>
-                      <div className="tpl-product-name">
-                        In trên tem: <strong style={{ color: '#334155' }}>{tpl.product}</strong>
-                      </div>
-
-                      <div className="tpl-barcode-box">
-                        <span className="tpl-barcode-num">{tpl.barcode}</span>
-                        <span className="tpl-copies-badge">Mặc định: {tpl.copies || 1} hàng</span>
-                      </div>
+                      {/* Mẫu in 1 tem trực quan 35x22mm */}
+                      <TemplateSingleLabelPreview tpl={tpl} onClick={() => applyTemplateToPrint(tpl)} />
                     </div>
 
                     <div className="tpl-actions-row">
