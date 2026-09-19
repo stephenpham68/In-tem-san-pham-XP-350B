@@ -128,6 +128,25 @@ def main():
         if src_ico.is_file():
             shutil.copy2(str(src_ico), str(dest_ico))
 
+        # Setup templates folder and grant write permissions for Users
+        templates_dir = TARGET_DIR / "templates"
+        templates_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            subprocess.run(["icacls", str(templates_dir), "/grant", "*S-1-5-32-545:(OI)(CI)M", "/T", "/C", "/Q"], capture_output=True)
+        except Exception:
+            pass
+
+        # Copy sample templates if available
+        src_templates = src_dir / "templates"
+        if src_templates.is_dir():
+            for tpl in src_templates.glob("*.json"):
+                dest_tpl = templates_dir / tpl.name
+                if not dest_tpl.exists():
+                    try:
+                        shutil.copy2(str(tpl), str(dest_tpl))
+                    except Exception:
+                        pass
+
         # Create uninstaller batch script with UTF-8
         uninstaller = TARGET_DIR / "Go-Cai-Dat.bat"
         uninstaller_content = (

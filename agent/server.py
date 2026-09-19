@@ -13,6 +13,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+import os
+import re
+from urllib.parse import parse_qs, unquote, urlparse
+
 from PIL import Image
 
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -27,11 +31,56 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
         pass
 
 if getattr(sys, "frozen", False):
-    ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    EXE_DIR = Path(sys.executable).resolve().parent
+    ROOT = Path(getattr(sys, "_MEIPASS", EXE_DIR))
     DIST = ROOT / "dist"
 else:
+    EXE_DIR = Path(__file__).resolve().parent.parent
     ROOT = Path(__file__).resolve().parent.parent
     DIST = ROOT / "dist"
+
+
+def get_templates_dir():
+    # 1. Thu muc templates canh file chay (neu co quyen ghi - rat tien khi copy nguyen folder)
+    local_dir = EXE_DIR / "templates"
+    try:
+        local_dir.mkdir(parents=True, exist_ok=True)
+        test_file = local_dir / ".wtest"
+        test_file.write_text("1", encoding="utf-8")
+        test_file.unlink()
+        return local_dir
+    except Exception:
+        pass
+
+    # 2. Thu muc Documents cua User (dam bao luon ghi duoc 100% tren moi may Windows)
+    docs_dir = Path(os.environ.get("USERPROFILE", ".")) / "Documents" / "InTemXP350B" / "templates"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    return docs_dir
+
+
+TEMPLATES_DIR = get_templates_dir()
+
+
+def seed_sample_template():
+    try:
+        if not any(TEMPLATES_DIR.glob("*.json")):
+            sample_file = TEMPLATES_DIR / "mau_trong_bong_04.json"
+            sample_data = {
+                "id": "mau_trong_bong_04",
+                "name": "Trống Bông 04 (Mẫu chuẩn)",
+                "brand": "TIẾN UYÊN",
+                "product": "TRỐNG BÔNG 04",
+                "price": "320.000đ",
+                "barcode": "893751041",
+                "copies": 1,
+                "updatedAt": "2026-09-19 16:00:00",
+            }
+            sample_file.write_text(json.dumps(sample_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+seed_sample_template()
 
 PRINTER = "Xprinter XP-350B"
 HOST = "127.0.0.1"
@@ -124,11 +173,25 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/api/status":
             ready = printer_exists()
             self.send_json(200, {"ready": ready, "message": "XP-350B đã sẵn sàng" if ready else "Không tìm thấy XP-350B"})
             return
+        if path == "/api/templates":
+            templates = []
+            for f in sorted(TEMPLATES_DIR.glob("*.json"), key=os.path.getmtime, reverse=True):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    if "id" not in data:
+                        data["id"] = f.stem
+                    templates.append(data)
+                except Exception:
+                    continue
+            self.send_json(200, {"ok": True, "templates": templates, "folder": str(TEMPLATES_DIR)})
+            return
+
         relative = unquote(path.lstrip("/")) or "index.html"
         file_path = (DIST / relative).resolve()
         if not str(file_path).startswith(str(DIST.resolve())) or not file_path.is_file():
@@ -144,18 +207,76 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_POST(self):
-        if urlparse(self.path).path != "/api/print":
-            self.send_error(404)
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path == "/api/templates/open-folder":
+            try:
+                os.startfile(str(TEMPLATES_DIR))
+                self.send_json(200, {"ok": True, "folder": str(TEMPLATES_DIR)})
+            except Exception as error:
+                self.send_json(500, {"ok": False, "message": str(error)})
             return
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-            body = json.loads(self.rfile.read(length))
-            copies = max(1, min(100, int(body.get("copies", 1))))
-            encoded = body["image"].split(",", 1)[1]
-            raw_print(png_to_tspl(base64.b64decode(encoded), copies, body.get("settings")))
-            self.send_json(200, {"ok": True, "message": f"Đã gửi {copies} hàng tem tới XP-350B"})
-        except Exception as error:
-            self.send_json(500, {"ok": False, "message": str(error)})
+
+        if path == "/api/templates":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length))
+                raw_id = str(body.get("id") or "").strip()
+                if not raw_id:
+                    # Tao id moi tu ten hoac timestamp
+                    slug = re.sub(r"[^a-zA-Z0-9]", "", body.get("product", ""))[:12]
+                    raw_id = f"tpl_{int(time.time())}_{slug}" if slug else f"tpl_{int(time.time())}"
+                safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_id).strip("_") or f"tpl_{int(time.time())}"
+                target_file = TEMPLATES_DIR / f"{safe_id}.json"
+
+                record = {
+                    "id": safe_id,
+                    "name": str(body.get("name") or body.get("product") or "Mẫu tem").strip(),
+                    "brand": str(body.get("brand") or "").strip(),
+                    "product": str(body.get("product") or "").strip(),
+                    "price": str(body.get("price") or "").strip(),
+                    "barcode": str(body.get("barcode") or "").strip(),
+                    "copies": max(1, min(100, int(body.get("copies", 1)))),
+                    "updatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                target_file.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+                self.send_json(200, {"ok": True, "template": record})
+            except Exception as error:
+                self.send_json(500, {"ok": False, "message": str(error)})
+            return
+
+        if path == "/api/print":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length))
+                copies = max(1, min(100, int(body.get("copies", 1))))
+                encoded = body["image"].split(",", 1)[1]
+                raw_print(png_to_tspl(base64.b64decode(encoded), copies, body.get("settings")))
+                self.send_json(200, {"ok": True, "message": f"Đã gửi {copies} hàng tem tới XP-350B"})
+            except Exception as error:
+                self.send_json(500, {"ok": False, "message": str(error)})
+            return
+
+        self.send_error(404)
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/templates":
+            try:
+                params = parse_qs(parsed.query)
+                raw_id = params.get("id", [""])[0]
+                safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_id).strip("_")
+                target_file = TEMPLATES_DIR / f"{safe_id}.json"
+                if target_file.is_file():
+                    target_file.unlink()
+                    self.send_json(200, {"ok": True, "deleted": safe_id})
+                else:
+                    self.send_json(404, {"ok": False, "message": "Không tìm thấy file mẫu"})
+            except Exception as error:
+                self.send_json(500, {"ok": False, "message": str(error)})
+            return
+        self.send_error(404)
 
     def log_message(self, format, *args):
         print(f"[{self.log_date_time_string()}] {format % args}")

@@ -21,6 +21,13 @@ Bấm vào link bên dưới để tải trực tiếp file `.exe` về máy tí
 
 ## ✨ Tính năng nổi bật
 
+* **Quản lý Kho Mẫu Sản Phẩm (Template Manager)**:
+  * Tab riêng biệt **Kho mẫu**: Tìm kiếm tức thì theo tên mẫu, sản phẩm, giá bán hoặc mã vạch barcode.
+  * Thêm, sửa, xóa các mẫu tem sản phẩm nhanh chóng.
+  * Bấm **"📥 Nạp mẫu này vào tab in"** hoặc **"🖨️ In ngay mẫu này"** chỉ với 1 click.
+  * Bấm **"💾 Lưu vào kho mẫu"** trực tiếp ngay tại tab in sau khi nhập thông tin mới.
+  * **Lưu file Offline nội bộ máy**: Mọi mẫu tem được lưu thành file chuẩn `.json` trong thư mục `templates/` của máy.
+  * **Chia sẻ tức thì giữa nhiều máy tính nhân viên**: Chỉ cần bấm nút **"📁 Mở thư mục mẫu"** trên giao diện, copy folder hoặc các file `.json` đưa sang máy nhân viên dán vào là hệ thống tự động nạp mẫu ngay, không cần phụ thuộc Internet hay đồng bộ Cloud.
 * **Tùy biến Thương hiệu / Tên cửa hàng**:
   * Tự do chỉnh sửa tên thương hiệu (mặc định mẫu là `TIẾN UYÊN`).
   * **Auto-fit & Anti-overflow**: Tên cửa hàng dù ngắn hay dài đều được thuật toán tự động co giãn kích thước chữ (auto-resize) vừa khít con tem, không bao giờ bị cắt hay tràn ra ngoài mép.
