@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mẫu Thiết Kế Giao Diện Mới - In Tem XP-350B</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900">
+
+  <!-- TOP APP HEADER -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand & Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-sm shadow-blue-500/20">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base text-slate-900 leading-tight">In Tem Sản Phẩm 2 Hàng</h1>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">XP-350B</span>
+          </div>
+          <p class="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Khổ cuộn 76mm (2 tem song song 35×22mm) · Sẵn sàng in</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Center Navigation Tabs (Segmented Control Pill) -->
+      <nav class="flex items-center bg-slate-100/80 p-1 rounded-xl border border-slate-200/80">
+        <button onclick="switchTab('print')" id="tab-btn-print" class="tab-btn flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all bg-white text-blue-600 shadow-xs">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 11h10M7 15h6" />
+          </svg>
+          <span>Bàn In Tem</span>
+        </button>
+        <button onclick="switchTab('templates')" id="tab-btn-templates" class="tab-btn flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 transition-all">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <span>Kho Mẫu Sản Phẩm</span>
+          <span id="tpl-counter-badge" class="ml-0.5 px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-slate-200 text-slate-700">4</span>
+        </button>
+        <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 transition-all">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>Căn Chỉnh Máy</span>
+        </button>
+      </nav>
+
+      <!-- Right Quick Actions -->
+      <div class="flex items-center gap-2">
+        <button onclick="openFolderAlert()" title="Mở thư mục lưu file .json trên máy tính" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-xs transition">
+          <svg class="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          <span>Thư Mục Mẫu</span>
+        </button>
+        <button onclick="showHelp()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+    <!-- ============================================================== -->
+    <!-- TAB 1: BÀN IN TEM (Focused, Modern & Breathable Workspace)    -->
+    <!-- ============================================================== -->
+    <div id="view-print" class="space-y-6">
+      
+      <!-- Top Quick Template Strip (User can quickly switch product without leaving print tab) -->
+      <div class="bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-white p-3.5 rounded-2xl border border-blue-100 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">⚡</div>
+          <div>
+            <div class="text-xs font-bold text-blue-900 tracking-wide uppercase">Mẫu sản phẩm đang chọn</div>
+            <div id="current-template-title" class="text-sm font-semibold text-slate-800">Trống Bông 04 (Mẫu chuẩn)</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Fast Dropdown -->
+          <div class="relative">
+            <select id="quick-template-select" onchange="onQuickSelectTemplate(this.value)" class="appearance-none bg-white border border-slate-300 text-slate-700 text-xs font-semibold py-2 pl-3 pr-8 rounded-xl hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs cursor-pointer">
+              <option value="mau_trong_bong_04">Trống Bông 04 (Mẫu chuẩn)</option>
+              <option value="mau_kho_bo">Khô Bò Sợi Cay 250g</option>
+              <option value="mau_hat_dieu">Hạt Điều Rang Muối A+</option>
+              <option value="mau_trai_cay">Trái Cây Sấy Thập Cẩm</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            </div>
+          </div>
+
+          <button onclick="switchTab('templates')" class="px-3 py-2 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-xl transition shadow-xs flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" /></svg>
+            <span>Mở kho mẫu</span>
+          </button>
+
+          <button onclick="openSaveTemplateModal()" class="px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition shadow-xs flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+            <span>Lưu thành mẫu mới</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main 2-Column Print Workspace -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- LEFT: Product Input Form (5 cols) -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+          
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h2 class="text-sm font-bold text-slate-900 tracking-wide uppercase flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+              Thông Tin Con Tem
+            </h2>
+            <button onclick="resetDefault()" class="text-xs font-medium text-slate-500 hover:text-blue-600 flex items-center gap-1 transition">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              <span>Điền lại mặc định</span>
+            </button>
+          </div>
+
+          <!-- Brand / Store Name -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-xs font-semibold text-slate-700">Tên thương hiệu / Cửa hàng</label>
+              <span class="text-[11px] text-slate-400">Tự động co chữ vừa khung</span>
+            </div>
+            <div class="relative">
+              <input type="text" id="input-brand" value="TIẾN UYÊN" oninput="updateLivePreview()" placeholder="Ví dụ: TIẾN UYÊN, MINH TÂM..." class="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs" />
+            </div>
+          </div>
+
+          <!-- Product Name -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tên sản phẩm in trên tem</label>
+            <input type="text" id="input-product" value="TRỐNG BÔNG 04" oninput="updateLivePreview()" placeholder="Nhập tên sản phẩm..." class="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs" />
+          </div>
+
+          <!-- Price & Unit in 2 columns -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Giá bán</label>
+              <input type="text" id="input-price" value="320.000" oninput="updateLivePreview()" placeholder="320.000" class="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Đơn vị tính</label>
+              <input type="text" id="input-unit" value="đ" oninput="updateLivePreview()" placeholder="đ hoặc VNĐ" class="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs" />
+            </div>
+          </div>
+
+          <!-- Barcode -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-xs font-semibold text-slate-700">Mã vạch (Barcode CODE128)</label>
+              <span class="text-[11px] text-slate-400">Số hoặc ký tự</span>
+            </div>
+            <div class="relative">
+              <input type="text" id="input-barcode" value="8938503890045" oninput="updateLivePreview()" placeholder="Ví dụ: 8938503890045" class="w-full font-mono-code bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm font-semibold tracking-wider text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs" />
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Print Quantity & Trigger Action Box -->
+          <div class="pt-4 border-t border-slate-100 space-y-4">
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label class="text-xs font-semibold text-slate-700">Số hàng tem cần in</label>
+                <span class="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md" id="label-count-hint">1 hàng = 2 con tem</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="adjustCopies(-1)" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center transition">-</button>
+                <input type="number" id="input-copies" value="1" min="1" max="999" onchange="onCopiesChange()" class="flex-1 text-center bg-slate-50 border border-slate-200 rounded-xl py-2 font-bold text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                <button onclick="adjustCopies(1)" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center transition">+</button>
+                
+                <!-- Quick Preset Buttons -->
+                <button onclick="setCopies(5)" class="px-2.5 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">+5</button>
+                <button onclick="setCopies(10)" class="px-2.5 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">+10</button>
+                <button onclick="setCopies(50)" class="px-2.5 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">+50</button>
+              </div>
+            </div>
+
+            <!-- Big Print Button -->
+            <button onclick="triggerPrintDemo()" id="btn-main-print" class="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.99]">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              <span class="text-base">In Nhiệt Ngay (TSPL RAW)</span>
+            </button>
+            <p class="text-[11px] text-center text-slate-400">Lệnh in truyền trực tiếp đến driver winspool XP-350B không cần qua hộp thoại</p>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: Live Canvas Preview (7 cols) -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col items-center">
+          
+          <div class="w-full flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wide">Xem Trước Decal Cuộn Thực Tế (1:1)</h3>
+            </div>
+            <div class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+              Khổ 76mm × 22mm · 2 con tem
+            </div>
+          </div>
+
+          <!-- Realistic Paper Roll Preview Simulation Container -->
+          <div class="w-full bg-slate-100/70 border border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center">
+            
+            <div class="relative bg-white border border-slate-300 rounded-lg p-3 shadow-md shadow-slate-200/60 max-w-full">
+              <!-- Label roll paper representation -->
+              <div class="flex items-center justify-center gap-2">
+                
+                <!-- Left Label -->
+                <div class="w-[230px] h-[145px] border border-slate-200 rounded-md p-2 flex flex-col justify-between bg-white relative overflow-hidden shadow-2xs">
+                  <div class="flex justify-between items-start gap-1">
+                    <span id="preview-brand-1" class="text-[10px] font-bold tracking-tight text-slate-900 border-b border-slate-900 pb-0.5 max-w-[90px] truncate">TIẾN UYÊN</span>
+                    <div class="text-right">
+                      <span id="preview-price-1" class="text-[11px] font-black text-slate-900">320.000</span>
+                      <span id="preview-unit-1" class="text-[9px] font-bold text-slate-700">đ</span>
+                    </div>
+                  </div>
+                  <div class="my-0.5">
+                    <div id="preview-product-1" class="text-[12px] font-extrabold text-slate-900 line-clamp-1 leading-tight">TRỐNG BÔNG 04</div>
+                  </div>
+                  <div class="flex flex-col items-center">
+                    <!-- Barcode Visual Bars Simulator -->
+                    <div class="w-full h-8 flex items-end justify-center gap-[2px] px-2 py-0.5">
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[3px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[4px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[3px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[3px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[4px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                    </div>
+                    <div id="preview-barcode-1" class="text-[9px] font-mono-code font-bold tracking-wider text-slate-800">8938503890045</div>
+                  </div>
+                </div>
+
+                <!-- Center Gap Marker (0.4mm) -->
+                <div class="h-28 w-1 border-r border-dashed border-amber-400 relative" title="Rãnh giữa 0.4mm"></div>
+
+                <!-- Right Label -->
+                <div class="w-[230px] h-[145px] border border-slate-200 rounded-md p-2 flex flex-col justify-between bg-white relative overflow-hidden shadow-2xs">
+                  <div class="flex justify-between items-start gap-1">
+                    <span id="preview-brand-2" class="text-[10px] font-bold tracking-tight text-slate-900 border-b border-slate-900 pb-0.5 max-w-[90px] truncate">TIẾN UYÊN</span>
+                    <div class="text-right">
+                      <span id="preview-price-2" class="text-[11px] font-black text-slate-900">320.000</span>
+                      <span id="preview-unit-2" class="text-[9px] font-bold text-slate-700">đ</span>
+                    </div>
+                  </div>
+                  <div class="my-0.5">
+                    <div id="preview-product-2" class="text-[12px] font-extrabold text-slate-900 line-clamp-1 leading-tight">TRỐNG BÔNG 04</div>
+                  </div>
+                  <div class="flex flex-col items-center">
+                    <div class="w-full h-8 flex items-end justify-center gap-[2px] px-2 py-0.5">
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[3px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[4px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[3px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[3px] h-full bg-black"></span>
+                      <span class="w-[1px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                      <span class="w-[4px] h-full bg-black"></span>
+                      <span class="w-[2px] h-full bg-black"></span>
+                    </div>
+                    <div id="preview-barcode-2" class="text-[9px] font-mono-code font-bold tracking-wider text-slate-800">8938503890045</div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Dimensions caption -->
+            <div class="mt-4 flex items-center gap-4 text-xs text-slate-500 font-medium">
+              <span class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-blue-500"></span> Tem Trái: 35×22mm
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span> Khe hở: 0.4mm
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-indigo-500"></span> Tem Phải: 35×22mm
+              </span>
+            </div>
+
+          </div>
+
+          <!-- Quick Tip Note -->
+          <div class="mt-4 w-full bg-blue-50/50 border border-blue-100 rounded-xl p-3 text-xs text-slate-600 flex items-start gap-2.5">
+            <svg class="w-4 h-4 text-blue-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div>
+              <span class="font-bold text-blue-900">Mẹo thao tác nhanh:</span> Bạn có thể lưu các sản phẩm hay in vào <strong>Kho mẫu</strong> để lần sau chỉ cần chọn từ thanh menu trên là in ngay, không cần gõ lại giá hay mã vạch.
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 2: KHO MẪU SẢN PHẨM (Spacious, Clean Catalog / Gallery)     -->
+    <!-- ============================================================== -->
+    <div id="view-templates" class="hidden space-y-6">
+      
+      <!-- Top Control Bar (Search + Filter + New Template Action) -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        
+        <!-- Search Input -->
+        <div class="relative w-full sm:w-80">
+          <input type="text" id="tpl-search-input" oninput="filterTemplates(this.value)" placeholder="Tìm tên sản phẩm, mã vạch, giá..." class="w-full pl-9 pr-4 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs" />
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          <button onclick="openFolderAlert()" class="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+            <span>Thư mục file .json</span>
+          </button>
+
+          <button onclick="openSaveTemplateModal(true)" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs shadow-blue-500/20 transition flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            <span>Thêm Mẫu Mới</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Information Banner: How file sharing works across staff PCs -->
+      <div class="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-900">
+        <div class="p-1 rounded-lg bg-amber-100 text-amber-700 shrink-0">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        </div>
+        <div class="flex-1">
+          <span class="font-bold">Cơ chế lưu trữ Offline &amp; Chia sẻ nhiều máy:</span> Mỗi mẫu được lưu thành 1 file <code class="bg-amber-100/70 px-1 py-0.5 rounded text-[11px] font-mono">.json</code> trong thư mục máy tính. Khi cần chuyển mẫu cho nhân viên khác, chỉ cần bấm <strong>"Thư mục file .json"</strong>, copy file gửi qua Zalo/USB và dán vào máy nhân viên là phần mềm nhận ngay lập tức!
+        </div>
+      </div>
+
+      <!-- TEMPLATE CARDS GRID (Spacious, airy 3-column catalog) -->
+      <div id="templates-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        
+        <!-- CARD 1 -->
+        <div class="template-card bg-white rounded-2xl border border-slate-200 hover:border-blue-400 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">TIẾN UYÊN</span>
+              <div class="text-right">
+                <span class="text-base font-black text-blue-600">320.000</span>
+                <span class="text-xs font-bold text-slate-600">đ</span>
+              </div>
+            </div>
+            <h4 class="text-base font-bold text-slate-900 group-hover:text-blue-600 transition leading-snug mb-1">Trống Bông 04 (Mẫu chuẩn)</h4>
+            <div class="text-xs text-slate-500 font-medium mb-3">Tên tem: <strong class="text-slate-700">TRỐNG BÔNG 04</strong></div>
+            
+            <!-- Mini Barcode Box -->
+            <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex items-center justify-between">
+              <span class="text-[11px] font-mono-code font-bold text-slate-700 tracking-wider">8938503890045</span>
+              <span class="text-[10px] font-semibold text-slate-400 bg-white px-2 py-0.5 rounded-md border border-slate-200">1 hàng (2 tem)</span>
+            </div>
+          </div>
+
+          <div class="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+            <button onclick="loadTemplateToPrint('mau_trong_bong_04')" class="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              <span>Nạp vào bàn in</span>
+            </button>
+            <button onclick="openSaveTemplateModal(false, 'mau_trong_bong_04')" title="Chỉnh sửa mẫu" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            </button>
+            <button onclick="deleteTemplateAlert('mau_trong_bong_04')" title="Xóa mẫu" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- CARD 2 -->
+        <div class="template-card bg-white rounded-2xl border border-slate-200 hover:border-blue-400 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">TIẾN UYÊN</span>
+              <div class="text-right">
+                <span class="text-base font-black text-blue-600">85.000</span>
+                <span class="text-xs font-bold text-slate-600">đ</span>
+              </div>
+            </div>
+            <h4 class="text-base font-bold text-slate-900 group-hover:text-blue-600 transition leading-snug mb-1">Khô Bò Sợi Cay 250g</h4>
+            <div class="text-xs text-slate-500 font-medium mb-3">Tên tem: <strong class="text-slate-700">KHÔ BÒ SỢI CAY</strong></div>
+            
+            <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex items-center justify-between">
+              <span class="text-[11px] font-mono-code font-bold text-slate-700 tracking-wider">8936012458901</span>
+              <span class="text-[10px] font-semibold text-slate-400 bg-white px-2 py-0.5 rounded-md border border-slate-200">2 hàng (4 tem)</span>
+            </div>
+          </div>
+
+          <div class="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+            <button onclick="loadTemplateToPrint('mau_kho_bo')" class="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              <span>Nạp vào bàn in</span>
+            </button>
+            <button onclick="openSaveTemplateModal(false, 'mau_kho_bo')" title="Chỉnh sửa mẫu" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            </button>
+            <button onclick="deleteTemplateAlert('mau_kho_bo')" title="Xóa mẫu" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- CARD 3 -->
+        <div class="template-card bg-white rounded-2xl border border-slate-200 hover:border-blue-400 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">TIẾN UYÊN</span>
+              <div class="text-right">
+                <span class="text-base font-black text-blue-600">145.000</span>
+                <span class="text-xs font-bold text-slate-600">đ</span>
+              </div>
+            </div>
+            <h4 class="text-base font-bold text-slate-900 group-hover:text-blue-600 transition leading-snug mb-1">Hạt Điều Rang Muối A+</h4>
+            <div class="text-xs text-slate-500 font-medium mb-3">Tên tem: <strong class="text-slate-700">HẠT ĐIỀU A+</strong></div>
+            
+            <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex items-center justify-between">
+              <span class="text-[11px] font-mono-code font-bold text-slate-700 tracking-wider">8935028471239</span>
+              <span class="text-[10px] font-semibold text-slate-400 bg-white px-2 py-0.5 rounded-md border border-slate-200">1 hàng (2 tem)</span>
+            </div>
+          </div>
+
+          <div class="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+            <button onclick="loadTemplateToPrint('mau_hat_dieu')" class="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              <span>Nạp vào bàn in</span>
+            </button>
+            <button onclick="openSaveTemplateModal(false, 'mau_hat_dieu')" title="Chỉnh sửa mẫu" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            </button>
+            <button onclick="deleteTemplateAlert('mau_hat_dieu')" title="Xóa mẫu" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- CARD 4 -->
+        <div class="template-card bg-white rounded-2xl border border-slate-200 hover:border-blue-400 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">TIẾN UYÊN</span>
+              <div class="text-right">
+                <span class="text-base font-black text-blue-600">65.000</span>
+                <span class="text-xs font-bold text-slate-600">đ</span>
+              </div>
+            </div>
+            <h4 class="text-base font-bold text-slate-900 group-hover:text-blue-600 transition leading-snug mb-1">Trái Cây Sấy Thập Cẩm</h4>
+            <div class="text-xs text-slate-500 font-medium mb-3">Tên tem: <strong class="text-slate-700">TRÁI CÂY SẤY</strong></div>
+            
+            <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex items-center justify-between">
+              <span class="text-[11px] font-mono-code font-bold text-slate-700 tracking-wider">8938192384751</span>
+              <span class="text-[10px] font-semibold text-slate-400 bg-white px-2 py-0.5 rounded-md border border-slate-200">5 hàng (10 tem)</span>
+            </div>
+          </div>
+
+          <div class="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+            <button onclick="loadTemplateToPrint('mau_trai_cay')" class="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              <span>Nạp vào bàn in</span>
+            </button>
+            <button onclick="openSaveTemplateModal(false, 'mau_trai_cay')" title="Chỉnh sửa mẫu" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            </button>
+            <button onclick="deleteTemplateAlert('mau_trai_cay')" title="Xóa mẫu" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 3: CĂN CHỈNH MÁY IN (Settings & Offsets)                     -->
+    <!-- ============================================================== -->
+    <div id="view-settings" class="hidden max-w-2xl mx-auto space-y-6">
+      
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Tọa Độ Căn Khung &amp; Bù Sai Số Cơ Học</h2>
+          <p class="text-xs text-slate-500 mt-1">Điều chỉnh vị trí in thực tế cho từng máy tính / máy in Xprinter XP-350B.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Dời ngang X (mm)</label>
+            <div class="text-[11px] text-slate-400 mb-2">Âm = dịch sang trái, Dương = sang phải</div>
+            <input type="number" step="0.1" value="-1.5" class="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono-code font-bold text-sm text-slate-800" />
+          </div>
+
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Dời dọc Y (mm)</label>
+            <div class="text-[11px] text-slate-400 mb-2">Âm = dịch lên trên, Dương = xuống dưới</div>
+            <input type="number" step="0.1" value="1.5" class="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono-code font-bold text-sm text-slate-800" />
+          </div>
+
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Khoảng cách rãnh 2 tem (mm)</label>
+            <div class="text-[11px] text-slate-400 mb-2">Tiêu chuẩn thực tế là 0.4 mm</div>
+            <input type="number" step="0.1" value="0.4" class="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono-code font-bold text-sm text-slate-800" />
+          </div>
+
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Bước nhảy hàng Gap (mm)</label>
+            <div class="text-[11px] text-slate-400 mb-2">Tiêu chuẩn decal 2 hàng là 3.0 mm</div>
+            <input type="number" step="0.1" value="3.0" class="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono-code font-bold text-sm text-slate-800" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+          <button class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-3 py-2 rounded-lg hover:bg-slate-100 transition">↺ Khôi phục chuẩn gốc (-1.5, +1.5)</button>
+          <button onclick="alert('Đã lưu cấu hình máy thành công!')" class="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-5 py-2.5 rounded-xl shadow-xs transition">💾 Lưu Cấu Hình Máy Này</button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MODAL: ADD / EDIT TEMPLATE -->
+  <div id="modal-template" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 id="modal-title" class="text-base font-bold text-slate-900">Thêm Mẫu Sản Phẩm Mới</h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Tên gợi nhớ mẫu (Hiển thị trong kho)</label>
+          <input type="text" id="modal-tpl-name" placeholder="Ví dụ: Trống Bông 04, Khô Gà Cay 500g..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Thương hiệu / Cửa hàng</label>
+            <input type="text" id="modal-tpl-brand" value="TIẾN UYÊN" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tên in trên tem</label>
+            <input type="text" id="modal-tpl-product" placeholder="TRỐNG BÔNG 04" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Giá bán</label>
+            <input type="text" id="modal-tpl-price" placeholder="320.000" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Mã vạch Barcode</label>
+            <input type="text" id="modal-tpl-barcode" placeholder="8938503890045" class="w-full font-mono-code bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+        <button onclick="closeModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Hủy bỏ</button>
+        <button onclick="saveModalTemplate()" class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition">Lưu Vào Kho Mẫu</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 transform transition-all duration-200 translate-y-10 opacity-0 pointer-events-none">
+    <span class="text-emerald-400">✓</span>
+    <span id="toast-msg">Đã nạp mẫu thành công!</span>
+  </div>
+
+  <script>
+    // Demo State
+    const demoTemplates = {
+      'mau_trong_bong_04': {
+        name: 'Trống Bông 04 (Mẫu chuẩn)',
+        brand: 'TIẾN UYÊN',
+        product: 'TRỐNG BÔNG 04',
+        price: '320.000',
+        unit: 'đ',
+        barcode: '8938503890045',
+        copies: 1
+      },
+      'mau_kho_bo': {
+        name: 'Khô Bò Sợi Cay 250g',
+        brand: 'TIẾN UYÊN',
+        product: 'KHÔ BÒ SỢI CAY',
+        price: '85.000',
+        unit: 'đ',
+        barcode: '8936012458901',
+        copies: 2
+      },
+      'mau_hat_dieu': {
+        name: 'Hạt Điều Rang Muối A+',
+        brand: 'TIẾN UYÊN',
+        product: 'HẠT ĐIỀU A+',
+        price: '145.000',
+        unit: 'đ',
+        barcode: '8935028471239',
+        copies: 1
+      },
+      'mau_trai_cay': {
+        name: 'Trái Cây Sấy Thập Cẩm',
+        brand: 'TIẾN UYÊN',
+        product: 'TRÁI CÂY SẤY',
+        price: '65.000',
+        unit: 'đ',
+        barcode: '8938192384751',
+        copies: 5
+      }
+    };
+
+    function switchTab(tabId) {
+      document.getElementById('view-print').classList.add('hidden');
+      document.getElementById('view-templates').classList.add('hidden');
+      document.getElementById('view-settings').classList.add('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.className = 'tab-btn flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 transition-all';
+      });
+
+      if (tabId === 'print') {
+        document.getElementById('view-print').classList.remove('hidden');
+        document.getElementById('tab-btn-print').className = 'tab-btn flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all bg-white text-blue-600 shadow-xs';
+      } else if (tabId === 'templates') {
+        document.getElementById('view-templates').classList.remove('hidden');
+        document.getElementById('tab-btn-templates').className = 'tab-btn flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all bg-white text-blue-600 shadow-xs';
+      } else if (tabId === 'settings') {
+        document.getElementById('view-settings').classList.remove('hidden');
+        document.getElementById('tab-btn-settings').className = 'tab-btn flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all bg-white text-blue-600 shadow-xs';
+      }
+    }
+
+    function updateLivePreview() {
+      const brand = document.getElementById('input-brand').value || '';
+      const product = document.getElementById('input-product').value || '';
+      const price = document.getElementById('input-price').value || '';
+      const unit = document.getElementById('input-unit').value || '';
+      const barcode = document.getElementById('input-barcode').value || '';
+
+      ['1', '2'].forEach(idx => {
+        document.getElementById(`preview-brand-${idx}`).textContent = brand;
+        document.getElementById(`preview-product-${idx}`).textContent = product;
+        document.getElementById(`preview-price-${idx}`).textContent = price;
+        document.getElementById(`preview-unit-${idx}`).textContent = unit;
+        document.getElementById(`preview-barcode-${idx}`).textContent = barcode;
+      });
+    }
+
+    function adjustCopies(delta) {
+      const el = document.getElementById('input-copies');
+      let val = Math.max(1, parseInt(el.value || 1) + delta);
+      el.value = val;
+      onCopiesChange();
+    }
+
+    function setCopies(qty) {
+      const el = document.getElementById('input-copies');
+      el.value = parseInt(el.value || 0) + qty;
+      onCopiesChange();
+    }
+
+    function onCopiesChange() {
+      const val = parseInt(document.getElementById('input-copies').value || 1);
+      document.getElementById('label-count-hint').textContent = `${val} hàng = ${val * 2} con tem`;
+    }
+
+    function loadTemplateToPrint(tplId) {
+      const tpl = demoTemplates[tplId];
+      if (!tpl) return;
+
+      document.getElementById('input-brand').value = tpl.brand;
+      document.getElementById('input-product').value = tpl.product;
+      document.getElementById('input-price').value = tpl.price;
+      document.getElementById('input-unit').value = tpl.unit || 'đ';
+      document.getElementById('input-barcode').value = tpl.barcode;
+      document.getElementById('input-copies').value = tpl.copies || 1;
+      document.getElementById('current-template-title').textContent = tpl.name;
+      document.getElementById('quick-template-select').value = tplId;
+
+      updateLivePreview();
+      onCopiesChange();
+      switchTab('print');
+      showToast(`Đã nạp mẫu "${tpl.name}" vào bàn in!`);
+    }
+
+    function onQuickSelectTemplate(tplId) {
+      loadTemplateToPrint(tplId);
+    }
+
+    function resetDefault() {
+      loadTemplateToPrint('mau_trong_bong_04');
+    }
+
+    function filterTemplates(keyword) {
+      const q = keyword.toLowerCase().trim();
+      const cards = document.querySelectorAll('#templates-grid .template-card');
+      cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        card.style.display = text.includes(q) ? 'flex' : 'none';
+      });
+    }
+
+    function openSaveTemplateModal(isNew = true, tplId = null) {
+      const modal = document.getElementById('modal-template');
+      modal.classList.remove('hidden');
+
+      if (isNew) {
+        document.getElementById('modal-title').textContent = 'Thêm Mẫu Sản Phẩm Mới';
+        document.getElementById('modal-tpl-name').value = document.getElementById('input-product').value;
+        document.getElementById('modal-tpl-brand').value = document.getElementById('input-brand').value;
+        document.getElementById('modal-tpl-product').value = document.getElementById('input-product').value;
+        document.getElementById('modal-tpl-price').value = document.getElementById('input-price').value;
+        document.getElementById('modal-tpl-barcode').value = document.getElementById('input-barcode').value;
+      } else if (tplId && demoTemplates[tplId]) {
+        const tpl = demoTemplates[tplId];
+        document.getElementById('modal-title').textContent = 'Chỉnh Sửa Mẫu Sản Phẩm';
+        document.getElementById('modal-tpl-name').value = tpl.name;
+        document.getElementById('modal-tpl-brand').value = tpl.brand;
+        document.getElementById('modal-tpl-product').value = tpl.product;
+        document.getElementById('modal-tpl-price').value = tpl.price;
+        document.getElementById('modal-tpl-barcode').value = tpl.barcode;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modal-template').classList.add('hidden');
+    }
+
+    function saveModalTemplate() {
+      closeModal();
+      showToast('Đã lưu mẫu thành công vào thư mục templates!');
+    }
+
+    function deleteTemplateAlert(tplId) {
+      if (confirm('Bạn có chắc muốn xóa mẫu này không?')) {
+        showToast('Đã xóa mẫu thành công.');
+      }
+    }
+
+    function openFolderAlert() {
+      showToast('Đang mở thư mục chứa file .json trong File Explorer...');
+    }
+
+    function triggerPrintDemo() {
+      const btn = document.getElementById('btn-main-print');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang gửi lệnh in TSPL...`;
+      btn.disabled = true;
+
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        showToast('✓ Lệnh in đã gửi thành công tới máy in XP-350B!');
+      }, 1000);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = msg;
+      toast.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+      }, 2500);
+    }
+
+    function showHelp() {
+      alert('Phần mềm in tem sản phẩm 2 hàng Xprinter XP-350B.\nKhổ cuộn 76mm, kích thước mỗi tem 35x22mm.');
+    }
+  </script>
+</body>
+</html>
