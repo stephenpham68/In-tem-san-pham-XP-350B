@@ -62,9 +62,33 @@ def create_shortcut(target_exe, icon_path, shortcut_path):
 
 
 def register_uninstall(target_dir, exe_path, ico_path, uninstaller_path):
-    for root in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:
+    # Xoa bo ban ghi trung lap o HKCU de Control Panel chi hien thi duy nhat 1 dong
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall", 0, winreg.KEY_SET_VALUE) as root:
+            winreg.DeleteKey(root, "In-tem-san-pham-XP-350B")
+    except Exception:
+        pass
+
+    # Dang ky duy nhat vao HKLM (neu co quyen admin) hoac HKCU (neu khong co admin)
+    registered = False
+    try:
+        with winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, UNINSTALL_KEY) as key:
+            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "In Tem Sản Phẩm XP-350B (Tiến Uyên)")
+            winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, str(ico_path))
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0.0")
+            winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Tiến Uyên")
+            winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, str(target_dir))
+            winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, f'cmd.exe /c "{uninstaller_path}"')
+            winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
+            winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
+            winreg.SetValueEx(key, "EstimatedSize", 0, winreg.REG_DWORD, 32000)
+            registered = True
+    except Exception:
+        pass
+
+    if not registered:
         try:
-            with winreg.CreateKey(root, UNINSTALL_KEY) as key:
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as key:
                 winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "In Tem Sản Phẩm XP-350B (Tiến Uyên)")
                 winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, str(ico_path))
                 winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0.0")
