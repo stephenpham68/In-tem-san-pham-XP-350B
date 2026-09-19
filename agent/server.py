@@ -82,7 +82,7 @@ def seed_sample_template():
 
 seed_sample_template()
 
-PRINTER = "Xprinter XP-350B"
+PRINTER_DEFAULT = "Xprinter XP-350B"
 HOST = "127.0.0.1"
 PORT = 9638
 
@@ -102,13 +102,33 @@ class DocInfo(Structure):
     _fields_ = [("pDocName", c_wchar_p), ("pOutputFile", c_wchar_p), ("pDataType", c_wchar_p)]
 
 
-def printer_exists():
+def get_detected_printer():
+    try:
+        import win32print
+        installed = [p[2] for p in win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)]
+        if PRINTER_DEFAULT in installed:
+            return PRINTER_DEFAULT
+        for p in installed:
+            nl = p.lower()
+            if "350b" in nl or "xp-350" in nl or "xp350" in nl or "xprinter" in nl:
+                return p
+    except Exception:
+        pass
+    return PRINTER_DEFAULT
+
+
+def get_active_printer():
+    target = get_detected_printer()
     winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
     handle = c_void_p()
-    ok = winspool.OpenPrinterW(PRINTER, byref(handle), None)
-    if ok:
+    if winspool.OpenPrinterW(target, byref(handle), None):
         winspool.ClosePrinter(handle)
-    return bool(ok)
+        return target
+    return None
+
+
+def printer_exists():
+    return get_active_printer() is not None
 
 
 def png_to_tspl(raw_png, copies, settings=None):
@@ -142,10 +162,11 @@ def png_to_tspl(raw_png, copies, settings=None):
 
 
 def raw_print(payload):
+    target_printer = get_active_printer() or PRINTER_DEFAULT
     winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
     handle = c_void_p()
-    if not winspool.OpenPrinterW(PRINTER, byref(handle), None):
-        raise OSError("Không tìm thấy máy in XP-350B")
+    if not winspool.OpenPrinterW(target_printer, byref(handle), None):
+        raise OSError(f"Không tìm thấy máy in '{target_printer}'. Vui lòng cắm cáp USB và kiểm tra máy in.")
     try:
         info = DocInfo("XP-350B Dual Label", None, "RAW")
         if not winspool.StartDocPrinterW(handle, 1, byref(info)):
@@ -176,8 +197,11 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/api/status":
-            ready = printer_exists()
-            self.send_json(200, {"ready": ready, "message": "XP-350B đã sẵn sàng" if ready else "Không tìm thấy XP-350B"})
+            detected = get_active_printer()
+            if detected:
+                self.send_json(200, {"ready": True, "message": f"{detected} sẵn sàng", "printer": detected})
+            else:
+                self.send_json(200, {"ready": False, "message": "Chưa kết nối XP-350B (cắm cáp USB)"})
             return
         if path == "/api/templates":
             templates = []
