@@ -213,7 +213,7 @@ class Handler(BaseHTTPRequestHandler):
                     templates.append(data)
                 except Exception:
                     continue
-            self.send_json(200, {"ok": True, "templates": templates, "folder": str(TEMPLATES_DIR)})
+            self.send_json(200, {"ok": True, "templates": templates, "folder": str(TEMPLATES_DIR.resolve())})
             return
 
         relative = unquote(path.lstrip("/")) or "index.html"
@@ -235,11 +235,18 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/templates/open-folder":
+            folder_str = str(TEMPLATES_DIR.resolve())
+            opened = False
             try:
-                os.startfile(str(TEMPLATES_DIR))
-                self.send_json(200, {"ok": True, "folder": str(TEMPLATES_DIR)})
-            except Exception as error:
-                self.send_json(500, {"ok": False, "message": str(error)})
+                subprocess.Popen(["explorer.exe", folder_str])
+                opened = True
+            except Exception:
+                try:
+                    os.startfile(folder_str)
+                    opened = True
+                except Exception:
+                    pass
+            self.send_json(200, {"ok": True, "opened": opened, "folder": folder_str})
             return
 
         if path == "/api/templates":

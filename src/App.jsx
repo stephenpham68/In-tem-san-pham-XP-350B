@@ -256,6 +256,9 @@ export default function App() {
   const [templateNameInput, setTemplateNameInput] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormData, setEditFormData] = useState(null);
+  const [templateFolder, setTemplateFolder] = useState('');
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [copiedFolder, setCopiedFolder] = useState(false);
 
   const data = {
     brand: brand,
@@ -276,6 +279,9 @@ export default function App() {
       if (json.ok && Array.isArray(json.templates)) {
         setTemplates(json.templates);
       }
+      if (json.folder) {
+        setTemplateFolder(json.folder);
+      }
     } catch (_) {}
   }
 
@@ -284,17 +290,29 @@ export default function App() {
   }, []);
 
   async function handleOpenTemplateFolder() {
+    setShowFolderModal(true);
     try {
       const res = await fetch('/api/templates/open-folder', { method: 'POST' });
       const json = await res.json();
-      if (json.ok) {
-        triggerToast('📁 Đã mở thư mục mẫu trên máy tính!');
+      if (json.folder) {
+        setTemplateFolder(json.folder);
+      }
+      if (json.ok && json.opened) {
+        triggerToast('📁 Đã mở thư mục mẫu trong File Explorer!');
       } else {
-        alert('Không thể mở thư mục: ' + json.message);
+        triggerToast('📁 Đã định vị thư mục mẫu!');
       }
     } catch (e) {
-      alert('Lỗi: ' + e.message);
+      triggerToast('📁 Thư mục lưu mẫu tem');
     }
+  }
+
+  function handleCopyFolderPath() {
+    if (!templateFolder) return;
+    navigator.clipboard.writeText(templateFolder);
+    setCopiedFolder(true);
+    triggerToast('📋 Đã sao chép đường dẫn thư mục vào Clipboard!');
+    setTimeout(() => setCopiedFolder(false), 3000);
   }
 
   async function handleSaveCurrentAsTemplate() {
@@ -979,12 +997,41 @@ export default function App() {
               </div>
             </div>
 
-            {/* Offline File Sharing Info Banner */}
-            <div className="info-banner">
-              <span style={{ fontSize: '16px' }}>ℹ️</span>
-              <div>
-                <strong>Cơ chế lưu trữ Offline & Chia sẻ đa máy:</strong> Mọi mẫu tem được lưu thành file chuẩn <code style={{ background: '#fef3c7', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>.json</code> trong thư mục của máy. Khi cần sao chép sang máy nhân viên khác, bạn chỉ cần bấm <strong>"Thư mục file .json"</strong>, copy các file mẫu gửi qua Zalo/USB và dán vào máy nhân viên là xong!
+            {/* Offline File Sharing Info Banner with full folder path & copy button */}
+            <div className="info-banner" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>ℹ️</span>
+                <div>
+                  <strong>Cơ chế lưu trữ Offline & Chia sẻ đa máy:</strong> Mọi mẫu tem được lưu thành file chuẩn <code style={{ background: '#fef3c7', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 600 }}>.json</code> trên ổ cứng. Khi cần gửi cho máy nhân viên, bạn chỉ cần copy các file này qua Zalo/USB và dán vào thư mục mẫu của máy nhân viên là phần mềm sẽ tự nhận diện.
+                </div>
               </div>
+
+              {templateFolder && (
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', background: '#ffffff', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px 12px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#9a3412', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    📁 Đường dẫn thư mục:
+                  </span>
+                  <code style={{ fontSize: '12px', color: '#1e293b', background: '#f8fafc', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', flex: 1, minWidth: '220px', wordBreak: 'break-all', userSelect: 'all' }}>
+                    {templateFolder}
+                  </code>
+                  <button
+                    type="button"
+                    className="btn-subtle"
+                    style={{ padding: '4px 10px', fontSize: '12px', background: copiedFolder ? '#dcfce7' : '#fff', color: copiedFolder ? '#15803d' : '#1e293b', borderColor: copiedFolder ? '#86efac' : '#cbd5e1' }}
+                    onClick={handleCopyFolderPath}
+                  >
+                    {copiedFolder ? '✓ Đã sao chép' : '📋 Sao chép đường dẫn'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-subtle"
+                    style={{ padding: '4px 10px', fontSize: '12px', background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}
+                    onClick={handleOpenTemplateFolder}
+                  >
+                    📂 Mở File Explorer
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Catalog Grid Cards */}
@@ -1307,6 +1354,83 @@ export default function App() {
                 onClick={handleSaveEditedTemplate}
               >
                 Lưu Thay Đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: THƯ MỤC LƯU MẪU .JSON & HƯỚNG DẪN CHIA SẺ */}
+      {showFolderModal && (
+        <div className="modal-overlay" onClick={() => setShowFolderModal(false)}>
+          <div className="modal-card" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📁 Thư Mục Lưu Trữ Mẫu In (.json)
+              </span>
+              <button type="button" className="modal-close" onClick={() => setShowFolderModal(false)}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
+              <p style={{ margin: 0 }}>
+                Hệ thống lưu các mẫu tem dưới dạng file <code style={{ background: '#fef3c7', padding: '1px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>.json</code> tại đường dẫn sau trên máy tính của bạn:
+              </p>
+
+              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Đường dẫn thư mục:
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#0f172a', wordBreak: 'break-all', userSelect: 'all', fontWeight: 600, background: '#fff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  {templateFolder || 'Đang tải đường dẫn...'}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-primary-print"
+                  style={{ width: 'auto', padding: '9px 18px', margin: 0, fontSize: '13px', background: copiedFolder ? '#10b981' : undefined }}
+                  onClick={handleCopyFolderPath}
+                >
+                  {copiedFolder ? '✓ Đã sao chép đường dẫn' : '📋 Sao chép đường dẫn này'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-subtle"
+                  style={{ padding: '9px 18px', fontSize: '13px', background: '#f8fafc' }}
+                  onClick={() => {
+                    fetch('/api/templates/open-folder', { method: 'POST' });
+                    triggerToast('📁 Đang gọi mở File Explorer...');
+                  }}
+                >
+                  📂 Mở File Explorer
+                </button>
+              </div>
+
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#166534' }}>
+                <strong>💡 Cách tự mở thủ công nếu File Explorer không tự hiện lên:</strong>
+                <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                  <li>Bấm nút <strong>"Sao chép đường dẫn này"</strong> ở trên.</li>
+                  <li>Nhấn tổ hợp phím <strong>Windows + E</strong> trên bàn phím (hoặc mở This PC).</li>
+                  <li>Dán (<strong>Ctrl + V</strong>) vào thanh địa chỉ của File Explorer rồi nhấn <strong>Enter</strong>.</li>
+                </ol>
+              </div>
+
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#1e40af' }}>
+                <strong>🚀 Chia sẻ mẫu sang máy nhân viên khác:</strong>
+                <div style={{ marginTop: '4px' }}>
+                  Chỉ cần copy file <code style={{ fontFamily: 'monospace' }}>.json</code> gửi qua Zalo / USB, rồi dán vào thư mục tương ứng trên máy nhân viên là xong!
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ marginTop: '16px' }}>
+              <button
+                type="button"
+                className="btn-primary-print"
+                style={{ width: 'auto', padding: '8px 24px', margin: 0 }}
+                onClick={() => setShowFolderModal(false)}
+              >
+                Đóng
               </button>
             </div>
           </div>
