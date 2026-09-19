@@ -61,6 +61,45 @@ def get_templates_dir():
 TEMPLATES_DIR = get_templates_dir()
 
 
+def open_folder_in_explorer(folder_path: Path) -> bool:
+    folder_str = str(folder_path.resolve())
+    opened = False
+
+    # 1. Kỹ thuật 1: win32process với lpDesktop = "winsta0\\default"
+    # Đây là kỹ thuật trực tiếp để hiển thị giao diện lên desktop người dùng kể cả khi tiến trình chạy ngầm
+    try:
+        import win32process
+        si = win32process.STARTUPINFO()
+        si.lpDesktop = r"winsta0\default"
+        win32process.CreateProcess(None, f'explorer.exe "{folder_str}"', None, None, False, 0, None, None, si)
+        opened = True
+    except Exception:
+        pass
+
+    # 2. Kỹ thuật 2: cmd.exe start (lệnh nội bộ của Windows Shell)
+    try:
+        subprocess.Popen(f'start "" "{folder_str}"', shell=True)
+        opened = True
+    except Exception:
+        pass
+
+    # 3. Kỹ thuật 3: Gọi trực tiếp explorer.exe
+    try:
+        subprocess.Popen(["explorer.exe", folder_str])
+        opened = True
+    except Exception:
+        pass
+
+    # 4. Kỹ thuật 4: os.startfile
+    try:
+        os.startfile(folder_str)
+        opened = True
+    except Exception:
+        pass
+
+    return opened
+
+
 def seed_sample_template():
     try:
         if not any(TEMPLATES_DIR.glob("*.json")):
@@ -236,16 +275,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/templates/open-folder":
             folder_str = str(TEMPLATES_DIR.resolve())
-            opened = False
-            try:
-                subprocess.Popen(["explorer.exe", folder_str])
-                opened = True
-            except Exception:
-                try:
-                    os.startfile(folder_str)
-                    opened = True
-                except Exception:
-                    pass
+            opened = open_folder_in_explorer(TEMPLATES_DIR)
             self.send_json(200, {"ok": True, "opened": opened, "folder": folder_str})
             return
 
@@ -266,6 +296,8 @@ class Handler(BaseHTTPRequestHandler):
                     "name": str(body.get("name") or body.get("product") or "Mẫu tem").strip(),
                     "brand": str(body.get("brand") or "").strip(),
                     "product": str(body.get("product") or "").strip(),
+                    "subText": str(body.get("subText") or "").strip(),
+                    "nameLayout": str(body.get("nameLayout") or "single").strip(),
                     "price": str(body.get("price") or "").strip(),
                     "barcode": str(body.get("barcode") or "").strip(),
                     "copies": max(1, min(100, int(body.get("copies", 1)))),
@@ -273,6 +305,27 @@ class Handler(BaseHTTPRequestHandler):
                 }
                 target_file.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
                 self.send_json(200, {"ok": True, "template": record})
+            except Exception as error:
+                self.send_json(500, {"ok": False, "message": str(error)})
+            return
+
+        if path == "/api/templates/batch-delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length))
+                ids = body.get("ids", [])
+                deleted = []
+                for raw_id in ids:
+                    safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(raw_id)).strip("_")
+                    if safe_id:
+                        target_file = TEMPLATES_DIR / f"{safe_id}.json"
+                        if target_file.is_file():
+                            try:
+                                target_file.unlink()
+                                deleted.append(safe_id)
+                            except Exception:
+                                pass
+                self.send_json(200, {"ok": True, "count": len(deleted), "deleted": deleted})
             except Exception as error:
                 self.send_json(500, {"ok": False, "message": str(error)})
             return
