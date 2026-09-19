@@ -98,7 +98,7 @@ def raw_print(payload):
     if not winspool.OpenPrinterW(PRINTER, byref(handle), None):
         raise OSError("Không tìm thấy máy in XP-350B")
     try:
-        info = DocInfo("Tien Uyen label", None, "RAW")
+        info = DocInfo("XP-350B Dual Label", None, "RAW")
         if not winspool.StartDocPrinterW(handle, 1, byref(info)):
             raise OSError("Không thể tạo lệnh in")
         try:
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         webbrowser.open(f"http://{HOST}:{PORT}")
         sys.exit(0)
 
-    print(f"Tien Uyen Label Printer: http://{HOST}:{PORT}")
+    print(f"XP-350B Dual Label Printer: http://{HOST}:{PORT}")
     threading.Thread(target=open_browser, daemon=True).start()
     try:
         ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

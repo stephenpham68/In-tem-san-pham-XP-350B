@@ -34,9 +34,9 @@ function barcodeCanvas(value) {
   return canvas;
 }
 
-function fitText(ctx, text, maxWidth, startSize, weight = 400) {
+function fitText(ctx, text, maxWidth, startSize, weight = 400, minSize = 9) {
   let size = startSize;
-  while (size > 11) {
+  while (size > minSize) {
     ctx.font = `${weight} ${size}px Arial, sans-serif`;
     if (ctx.measureText(text).width <= maxWidth) break;
     size -= 1;
@@ -66,20 +66,32 @@ function drawLabel(ctx, x, y, config, data) {
 
   ctx.fillStyle = '#000000';
 
-  // 1. Chữ thương hiệu 'TIẾN UYÊN' xoay dọc bên trái
-  // safeH = 160 dots (tương ứng 20 mm). Căn giữa dọc tại safeY + safeH / 2.
-  ctx.save();
-  ctx.translate(safeX + 18, safeY + safeH / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '700 22px Arial, sans-serif';
-  ctx.fillText('TIẾN UYÊN', 0, 0);
-  ctx.restore();
+  // 1. Chữ thương hiệu xoay dọc bên trái (Tự động co giãn theo chiều dọc safeH, không tràn khung)
+  const brandText = (data.brand || '').trim().toUpperCase();
+  const hasBrand = Boolean(brandText);
 
-  // 2. Cột thông tin sản phẩm và mã vạch
-  const contentX = safeX + 40;
-  const contentW = safeW - 42; // ~222 dots (~27.75 mm)
+  if (hasBrand) {
+    ctx.save();
+    ctx.translate(safeX + 18, safeY + safeH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const brandSize = fitText(ctx, brandText, safeH - 8, 22, 700, 9);
+    ctx.font = `700 ${brandSize}px Arial, sans-serif`;
+
+    let displayText = brandText;
+    while (displayText.length > 4 && ctx.measureText(displayText).width > (safeH - 8)) {
+      displayText = displayText.slice(0, -1);
+    }
+    if (displayText !== brandText) displayText = displayText.slice(0, -2) + '..';
+
+    ctx.fillText(displayText, 0, 0);
+    ctx.restore();
+  }
+
+  // 2. Cột thông tin sản phẩm và mã vạch (Tự động dàn đều full khung nếu không có brand)
+  const contentX = hasBrand ? safeX + 40 : safeX + 8;
+  const contentW = hasBrand ? safeW - 42 : safeW - 16;
 
   // Tên sản phẩm
   ctx.textAlign = 'left';
@@ -174,6 +186,13 @@ export default function App() {
     return DEFAULT_CONFIG;
   });
 
+  const [brand, setBrand] = useState(() => {
+    try {
+      const saved = localStorage.getItem('xprinter_store_brand');
+      if (saved !== null) return saved;
+    } catch (_) {}
+    return 'TIẾN UYÊN';
+  });
   const [product, setProduct] = useState('TRỐNG BÔNG 04');
   const [price, setPrice] = useState('320.000đ');
   const [barcode, setBarcode] = useState('893751041');
@@ -181,14 +200,29 @@ export default function App() {
   const [showOffset, setShowOffset] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
   const [status, setStatus] = useState({ kind: 'idle', text: 'Đang kiểm tra máy in…' });
-  const data = { product: product.trim() || 'SẢN PHẨM', price: price.trim() || '0đ', barcode: barcode.trim() || '0' };
+  const data = {
+    brand: brand,
+    product: product.trim() || 'SẢN PHẨM',
+    price: price.trim() || '0đ',
+    barcode: barcode.trim() || '0'
+  };
 
   function handleSaveConfig() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      localStorage.setItem('xprinter_store_brand', brand);
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 3000);
     } catch (_) {}
+  }
+
+  function resetDefaultConfig() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('xprinter_store_brand');
+    } catch (_) {}
+    setConfig(DEFAULT_CONFIG);
+    setBrand('TIẾN UYÊN');
   }
 
   // Lưu cấu hình vào localStorage khi thay đổi
@@ -202,7 +236,7 @@ export default function App() {
     if (!canvasRef.current) return;
     if (mode === 'calibration') renderCalibrationCanvas(canvasRef.current, config);
     else renderCanvas(canvasRef.current, config, data);
-  }, [product, price, barcode, mode, config]);
+  }, [brand, product, price, barcode, mode, config]);
 
   useEffect(() => {
     fetch('/api/status')
@@ -283,10 +317,6 @@ export default function App() {
     }
   }
 
-  function resetDefaultConfig() {
-    setConfig(DEFAULT_CONFIG);
-  }
-
   // Tính toán vị trí phần trăm thực tế của 2 con tem trên bề rộng cuộn 76mm
   const totalDots = config.paperWidth * MM; // 608 dots
   const sX1 = (config.leftMargin + config.offsetX) * MM;
@@ -306,8 +336,8 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">TIẾN UYÊN</p>
-          <h1>In tem sản phẩm</h1>
+          <p className="eyebrow">{brand ? brand.toUpperCase() : 'IN TEM MÃ VẠCH'}</p>
+          <h1>In tem sản phẩm 2 hàng (XP-350B)</h1>
         </div>
         <div className={`status status-${status.kind}`}><span />{status.text}</div>
       </header>
@@ -327,6 +357,19 @@ export default function App() {
           </div>
 
           {mode === 'label' ? <>
+            <label>
+              Tên thương hiệu / Cửa hàng
+              <input
+                value={brand}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setBrand(val);
+                  try { localStorage.setItem('xprinter_store_brand', val); } catch (_) {}
+                }}
+                placeholder="VD: TIẾN UYÊN (hoặc để trống)"
+                maxLength={40}
+              />
+            </label>
             <label>Tên sản phẩm<input value={product} onChange={(event) => setProduct(event.target.value)} maxLength={42} /></label>
             <label>Giá bán<input value={price} onChange={(event) => setPrice(event.target.value)} maxLength={24} /></label>
             <label>Mã barcode<input value={barcode} onChange={(event) => setBarcode(event.target.value.replace(/[^0-9A-Za-z._-]/g, ''))} maxLength={32} inputMode="numeric" /></label>

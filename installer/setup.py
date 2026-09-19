@@ -9,7 +9,7 @@ from pathlib import Path
 TARGET_DIR = Path(r"C:\Program Files\In-tem-san-pham-XP-350B")
 EXE_NAME = "InTemXP350B.exe"
 ICO_NAME = "app.ico"
-APP_SHORTCUT = "In Tem Tien Uyen (XP-350B).lnk"
+APP_SHORTCUT = "In Tem San Pham XP-350B.lnk"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\In-tem-san-pham-XP-350B"
 
 
@@ -40,10 +40,9 @@ def create_shortcut(target_exe, icon_path, shortcut_path):
         sc.TargetPath = str(target_exe)
         sc.WorkingDirectory = str(target_exe.parent)
         sc.IconLocation = f"{icon_path},0"
-        sc.Description = "Phan mem in tem XP-350B"
+        sc.Description = "Phan mem in tem san pham XP-350B"
         sc.Save()
     except Exception:
-        # Fallback using Windows Script Host via temp vbs
         vbs = (
             f'Set w = CreateObject("WScript.Shell")\r\n'
             f'Set s = w.CreateShortcut("{shortcut_path}")\r\n'
@@ -73,10 +72,10 @@ def register_uninstall(target_dir, exe_path, ico_path, uninstaller_path):
     registered = False
     try:
         with winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, UNINSTALL_KEY) as key:
-            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "In Tem Sản Phẩm XP-350B (Tiến Uyên)")
+            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "In Tem Sản Phẩm 2 Hàng (Xprinter XP-350B)")
             winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, str(ico_path))
             winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0.0")
-            winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Tiến Uyên")
+            winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Open Source Community")
             winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, str(target_dir))
             winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, f'cmd.exe /c "{uninstaller_path}"')
             winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
@@ -89,10 +88,10 @@ def register_uninstall(target_dir, exe_path, ico_path, uninstaller_path):
     if not registered:
         try:
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as key:
-                winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "In Tem Sản Phẩm XP-350B (Tiến Uyên)")
+                winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "In Tem Sản Phẩm 2 Hàng (Xprinter XP-350B)")
                 winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, str(ico_path))
                 winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0.0")
-                winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Tiến Uyên")
+                winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Open Source Community")
                 winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, str(target_dir))
                 winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, f'cmd.exe /c "{uninstaller_path}"')
                 winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
@@ -144,6 +143,8 @@ def main():
             f'reg delete "HKCU\\{UNINSTALL_KEY}" /f >nul 2>&1\r\n'
             f'del /F /Q "%PUBLIC%\\Desktop\\{APP_SHORTCUT}" >nul 2>&1\r\n'
             f'del /F /Q "%USERPROFILE%\\Desktop\\{APP_SHORTCUT}" >nul 2>&1\r\n'
+            'del /F /Q "%PUBLIC%\\Desktop\\In Tem Tien Uyen (XP-350B).lnk" >nul 2>&1\r\n'
+            'del /F /Q "%USERPROFILE%\\Desktop\\In Tem Tien Uyen (XP-350B).lnk" >nul 2>&1\r\n'
             f'powershell -Command "Start-Sleep -Seconds 1; Remove-Item -Path \'{TARGET_DIR}\' -Recurse -Force -ErrorAction SilentlyContinue"\r\n'
             'echo Da go bo phan mem thanh cong!\r\n'
             "timeout /t 2 >nul\r\n"
@@ -160,6 +161,13 @@ def main():
         if user_desktop.exists():
             create_shortcut(dest_exe, dest_ico, user_desktop / APP_SHORTCUT)
 
+        # Xoa shortcut cu neu co
+        try:
+            (public_desktop / "In Tem Tien Uyen (XP-350B).lnk").unlink(missing_ok=True)
+            (user_desktop / "In Tem Tien Uyen (XP-350B).lnk").unlink(missing_ok=True)
+        except Exception:
+            pass
+
         # Register in Control Panel
         register_uninstall(TARGET_DIR, dest_exe, dest_ico, uninstaller)
 
@@ -168,12 +176,12 @@ def main():
 
         ctypes.windll.user32.MessageBoxW(
             0,
-            "Cài đặt phần mềm In Tem XP-350B thành công!\n\n"
+            "Cài đặt phần mềm In Tem Sản Phẩm 2 Hàng (XP-350B) thành công!\n\n"
             "- Thư mục: C:\\Program Files\\In-tem-san-pham-XP-350B\n"
             "- Đã tạo biểu tượng ngoài màn hình Desktop.\n"
             "- Quản lý gỡ cài đặt: Control Panel (Programs and Features).\n"
             "- Hệ thống đang tự động mở web tại http://127.0.0.1:9638/...",
-            "Cài Đặt Thành Công - Tiến Uyên",
+            "Cài Đặt Hoàn Tất",
             0x40
         )
     except Exception as err:
