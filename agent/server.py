@@ -3,6 +3,11 @@ import ctypes
 import io
 import json
 import mimetypes
+import socket
+import sys
+import threading
+import time
+import webbrowser
 from ctypes import POINTER, Structure, byref, c_bool, c_uint32, c_void_p, c_wchar_p
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,11 +15,38 @@ from urllib.parse import unquote, urlparse
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent
-DIST = ROOT / "dist"
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+if getattr(sys, "frozen", False):
+    ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    DIST = ROOT / "dist"
+else:
+    ROOT = Path(__file__).resolve().parent.parent
+    DIST = ROOT / "dist"
+
 PRINTER = "Xprinter XP-350B"
 HOST = "127.0.0.1"
 PORT = 9638
+
+
+def is_port_in_use(port, host="127.0.0.1"):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex((host, port)) == 0
+
+
+def open_browser():
+    time.sleep(1.2)
+    webbrowser.open(f"http://{HOST}:{PORT}")
 
 
 class DocInfo(Structure):
@@ -130,5 +162,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    if is_port_in_use(PORT):
+        print(f"He thong da khoi dong tai http://{HOST}:{PORT}. Dang mo trinh duyet...")
+        webbrowser.open(f"http://{HOST}:{PORT}")
+        sys.exit(0)
+
     print(f"Tien Uyen Label Printer: http://{HOST}:{PORT}")
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    threading.Thread(target=open_browser, daemon=True).start()
+    try:
+        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    except KeyboardInterrupt:
+        pass

@@ -179,8 +179,17 @@ export default function App() {
   const [barcode, setBarcode] = useState('893751041');
   const [copies, setCopies] = useState(1);
   const [showOffset, setShowOffset] = useState(false);
+  const [saveToast, setSaveToast] = useState(false);
   const [status, setStatus] = useState({ kind: 'idle', text: 'Đang kiểm tra máy in…' });
   const data = { product: product.trim() || 'SẢN PHẨM', price: price.trim() || '0đ', barcode: barcode.trim() || '0' };
+
+  function handleSaveConfig() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      setSaveToast(true);
+      setTimeout(() => setSaveToast(false), 3000);
+    } catch (_) {}
+  }
 
   // Lưu cấu hình vào localStorage khi thay đổi
   useEffect(() => {
@@ -358,15 +367,30 @@ export default function App() {
                 <div style={{ padding: '14px', background: '#f8fafc', border: '1px solid #cbd5e1', borderTop: '0', borderRadius: '0 0 11px 11px', display: 'grid', gap: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>Căn chỉnh lề tem</span>
-                    <button
-                      type="button"
-                      title="Khôi phục chuẩn mặc định hoàn hảo (-1.5, +1.5, 0.4 mm)"
-                      style={{ padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: '6px', background: '#fff', cursor: 'pointer', fontSize: '11px', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      onClick={resetDefaultConfig}
-                    >
-                      ↺ Mặc định
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        style={{ padding: '4px 9px', border: '1px solid #16a34a', borderRadius: '6px', background: '#f0fdf4', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        onClick={handleSaveConfig}
+                      >
+                        💾 Lưu cấu hình
+                      </button>
+                      <button
+                        type="button"
+                        title="Khôi phục chuẩn mặc định hoàn hảo (-1.5, +1.5, 0.4 mm)"
+                        style={{ padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: '6px', background: '#fff', cursor: 'pointer', fontSize: '11px', fontWeight: 600, color: '#475467', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        onClick={resetDefaultConfig}
+                      >
+                        ↺ Mặc định
+                      </button>
+                    </div>
                   </div>
+
+                  {saveToast && (
+                    <div style={{ padding: '6px 10px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', color: '#065f46', fontSize: '11px', fontWeight: '600', textAlign: 'center' }}>
+                      ✓ Đã lưu cấu hình riêng trên máy này!
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: '700', marginBottom: '4px', color: '#475467' }}>
