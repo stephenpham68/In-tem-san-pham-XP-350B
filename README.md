@@ -19,6 +19,21 @@ Bấm vào link bên dưới để tải trực tiếp file `.exe` về máy tí
 
 ---
 
+## 📸 Giao diện trực quan (UI Dashboard Preview)
+
+### 1. Bàn In Tem & Xem trước Decal thực tế (1:1)
+> Giao diện trực quan cho phép nhập thông tin sản phẩm, chọn 3 mẫu tem chuẩn ngành, xem trước kích thước decal 2 tem 1:1 siêu nét và in nhiệt tức thì qua lệnh TSPL RAW.
+
+![Bàn In Tem Sản Phẩm 2 Hàng](docs/images/dashboard-preview.png)
+
+### 2. Quản lý Kho Mẫu Tem Nhãn (Offline & Đa máy)
+> Tìm kiếm tức thì, lọc trùng lặp sản phẩm, xem trước thẻ mẫu trực quan, nạp nhanh vào bàn in và chia sẻ file JSON giữa nhiều máy trạm nội bộ không cần Internet.
+
+![Kho Mẫu Tem Sản Phẩm](docs/images/kho-mau-preview.png)
+
+---
+
+
 ## ✨ Tính năng nổi bật
 
 * **Quản lý Kho Mẫu Sản Phẩm (Template Manager)**:
