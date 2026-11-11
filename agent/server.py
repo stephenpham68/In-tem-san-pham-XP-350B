@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlparse
 
 import os
 import re
+import subprocess
 from urllib.parse import parse_qs, unquote, urlparse
 
 from PIL import Image
@@ -141,23 +142,87 @@ class DocInfo(Structure):
     _fields_ = [("pDocName", c_wchar_p), ("pOutputFile", c_wchar_p), ("pDataType", c_wchar_p)]
 
 
-def get_detected_printer():
+XP350B_KEYWORDS = ("350b", "xp-350", "xp350", "xprinter")
+A6_KEYWORDS = ("gp-420", "420d", "420b", "by-482", "482", "xp-4", "450", "460", "470", "490", "gprinter", "beeprt", "hprt", "zebra", "tsc", "a6")
+VIRTUAL_PRINTER_KEYWORDS = ("microsoft print to pdf", "adobe pdf", "xps document", "onenote", "fax")
+
+
+def _is_tspl_driver(name: str, driver: str = "") -> bool:
+    combined = f"{name} {driver}".lower()
+    return not any(k in combined for k in VIRTUAL_PRINTER_KEYWORDS)
+
+
+def list_printers():
+    items = []
+    default_name = ""
     try:
         import win32print
-        installed = [p[2] for p in win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)]
-        if PRINTER_DEFAULT in installed:
-            return PRINTER_DEFAULT
-        for p in installed:
-            nl = p.lower()
-            if "350b" in nl or "xp-350" in nl or "xp350" in nl or "xprinter" in nl:
-                return p
+        try:
+            default_name = win32print.GetDefaultPrinter()
+        except Exception:
+            default_name = ""
+        flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+        raw_printers = win32print.EnumPrinters(flags, None, 2)
+        offline_flag = getattr(win32print, "PRINTER_ATTRIBUTE_WORK_OFFLINE", 0x00000400)
+        for p in raw_printers:
+            name = p.get("pPrinterName") or ""
+            driver = p.get("pDriverName") or ""
+            port = p.get("pPortName") or ""
+            attrs = int(p.get("Attributes") or 0)
+            online = not bool(attrs & offline_flag)
+            lower = f"{name} {driver}".lower()
+            is_virtual = any(k in lower for k in VIRTUAL_PRINTER_KEYWORDS)
+            is_xp350b = any(k in lower for k in XP350B_KEYWORDS)
+            is_a6 = (not is_xp350b) and (not is_virtual) and any(k in lower for k in A6_KEYWORDS)
+            items.append({
+                "name": name,
+                "driver": driver,
+                "port": port,
+                "online": online,
+                "isDefault": name == default_name,
+                "isVirtual": is_virtual,
+                "supportsTspl": _is_tspl_driver(name, driver),
+                "isXp350b": is_xp350b,
+                "isA6": is_a6,
+            })
     except Exception:
         pass
-    return PRINTER_DEFAULT
+    return items
 
 
-def get_active_printer():
-    target = get_detected_printer()
+def _pick_best_printer(printers, predicate, fallback_exact=None):
+    if fallback_exact:
+        exact_online = [p for p in printers if p["name"] == fallback_exact and p["online"]]
+        if exact_online:
+            return exact_online[0]["name"]
+    matched = [p for p in printers if predicate(p)]
+    if matched:
+        matched.sort(key=lambda p: (
+            0 if p["online"] else 1,
+            0 if "usb" in (p["port"] or "").lower() else 1,
+            0 if p["name"] == fallback_exact else 1,
+        ))
+        return matched[0]["name"]
+    return None
+
+
+def get_detected_printer():
+    printers = list_printers()
+    picked = _pick_best_printer(printers, lambda p: p["isXp350b"], PRINTER_DEFAULT)
+    return picked or PRINTER_DEFAULT
+
+
+def get_recommended_a6_printer():
+    printers = list_printers()
+    picked = _pick_best_printer(printers, lambda p: p["isA6"])
+    if picked:
+        return picked
+    non_xp = _pick_best_printer(printers, lambda p: not p["isXp350b"] and not p["isVirtual"])
+    return non_xp or ""
+
+
+def get_active_printer(target_name=None):
+    target = (target_name or "").strip() or get_detected_printer()
     winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
     handle = c_void_p()
     if winspool.OpenPrinterW(target, byref(handle), None):
@@ -166,21 +231,35 @@ def get_active_printer():
     return None
 
 
-def printer_exists():
-    return get_active_printer() is not None
+def printer_exists(target_name=None):
+    return get_active_printer(target_name) is not None
+
+
+def _apply_rotation(image, rotate):
+    transpose_enum = getattr(Image, "Transpose", Image)
+    if rotate == 90:
+        return image.transpose(transpose_enum.ROTATE_90)
+    if rotate == 270:
+        return image.transpose(transpose_enum.ROTATE_270)
+    if rotate == 180:
+        return image.transpose(transpose_enum.ROTATE_180)
+    return image
 
 
 def png_to_tspl(raw_png, copies, settings=None):
     if settings:
-        paper_width = max(20.0, min(82.0, float(settings.get("paperWidth", 76))))
-        paper_height = max(5.0, min(100.0, float(settings.get("paperHeight", 22))))
-        gap = max(0.0, min(10.0, float(settings.get("gap", 3))))
+        paper_width = max(20.0, min(120.0, float(settings.get("paperWidth", 76))))
+        paper_height = max(5.0, min(220.0, float(settings.get("paperHeight", 22))))
+        gap = max(0.0, min(15.0, float(settings.get("gap", 3))))
+        density = max(1, min(15, int(settings.get("density", 8))))
+        rotate = int(settings.get("rotate", 0) or 0)
     else:
-        paper_width, paper_height, gap = 76.0, 22.0, 3.0
-    image = Image.open(io.BytesIO(raw_png)).convert("RGB")
+        paper_width, paper_height, gap, density, rotate = 76.0, 22.0, 3.0, 8, 0
+    image = _apply_rotation(Image.open(io.BytesIO(raw_png)).convert("RGB"), rotate)
     expected_size = (round(paper_width * 8), round(paper_height * 8))
     if image.size != expected_size:
-        image = image.resize(expected_size, Image.Resampling.LANCZOS)
+        resampling = getattr(Image, "Resampling", Image)
+        image = image.resize(expected_size, resampling.LANCZOS)
     gray = image.convert("L")
     width, height = gray.size
     row_bytes = (width + 7) // 8
@@ -194,14 +273,14 @@ def png_to_tspl(raw_png, copies, settings=None):
                 raster[y * row_bytes + x // 8] &= ~(0x80 >> (x % 8))
     head = (
         f"SIZE {paper_width:g} mm,{paper_height:g} mm\r\nGAP {gap:g} mm,0 mm\r\nREFERENCE 0,0\r\nDIRECTION 1\r\n"
-        f"DENSITY 8\r\nCLS\r\nBITMAP 0,0,{row_bytes},{height},0,"
+        f"DENSITY {density}\r\nCLS\r\nBITMAP 0,0,{row_bytes},{height},0,"
     ).encode("ascii")
     job = head + bytes(raster) + f"\r\nPRINT {copies},1\r\n".encode("ascii")
     return job
 
 
-def raw_print(payload):
-    target_printer = get_active_printer() or PRINTER_DEFAULT
+def raw_print(payload, printer_name=None):
+    target_printer = get_active_printer(printer_name) or (printer_name or PRINTER_DEFAULT)
     winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
     handle = c_void_p()
     if not winspool.OpenPrinterW(target_printer, byref(handle), None):
@@ -223,6 +302,39 @@ def raw_print(payload):
         winspool.ClosePrinter(handle)
 
 
+def gdi_print(raw_png, copies, printer_name, settings=None):
+    import win32ui
+    from PIL import ImageWin
+
+    rotate = int((settings or {}).get("rotate", 0) or 0)
+    image = _apply_rotation(Image.open(io.BytesIO(raw_png)).convert("RGB"), rotate)
+
+    target_printer = get_active_printer(printer_name) or printer_name or get_detected_printer()
+    hdc = win32ui.CreateDC()
+    hdc.CreatePrinterDC(target_printer)
+    try:
+        printable_w = hdc.GetDeviceCaps(8)   # HORZRES
+        printable_h = hdc.GetDeviceCaps(10)  # VERTRES
+        img_w, img_h = image.size
+        scale = min(printable_w / img_w, printable_h / img_h)
+        draw_w = max(1, int(round(img_w * scale)))
+        draw_h = max(1, int(round(img_h * scale)))
+        offset_x = (printable_w - draw_w) // 2
+        offset_y = (printable_h - draw_h) // 2
+
+        dib = ImageWin.Dib(image)
+        hdc.StartDoc("Label Print Job")
+        try:
+            for _ in range(copies):
+                hdc.StartPage()
+                dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
+                hdc.EndPage()
+        finally:
+            hdc.EndDoc()
+    finally:
+        hdc.DeleteDC()
+
+
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, value):
         data = json.dumps(value, ensure_ascii=False).encode("utf-8")
@@ -236,11 +348,28 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/api/status":
-            detected = get_active_printer()
+            params = parse_qs(parsed.query)
+            req_printer = params.get("printer", [""])[0].strip() or None
+            detected = get_active_printer(req_printer)
             if detected:
-                self.send_json(200, {"ready": True, "message": f"{detected} sẵn sàng", "printer": detected})
+                printers = list_printers()
+                matched = next((p for p in printers if p["name"] == detected), None)
+                if matched and not matched["online"]:
+                    self.send_json(200, {"ready": False, "message": f"{detected} đang Offline (kiểm tra nguồn/cáp USB)", "printer": detected})
+                else:
+                    self.send_json(200, {"ready": True, "message": f"{detected} sẵn sàng", "printer": detected})
             else:
-                self.send_json(200, {"ready": False, "message": "Chưa kết nối XP-350B (cắm cáp USB)"})
+                label = req_printer or "XP-350B"
+                self.send_json(200, {"ready": False, "message": f"Chưa kết nối {label} (cắm cáp USB)"})
+            return
+        if path == "/api/printers":
+            printers = list_printers()
+            self.send_json(200, {
+                "ok": True,
+                "printers": printers,
+                "recommendedXp350b": get_detected_printer(),
+                "recommendedA6": get_recommended_a6_printer(),
+            })
             return
         if path == "/api/templates":
             templates = []
@@ -300,9 +429,15 @@ class Handler(BaseHTTPRequestHandler):
                     "nameLayout": str(body.get("nameLayout") or "single").strip(),
                     "price": str(body.get("price") or "").strip(),
                     "barcode": str(body.get("barcode") or "").strip(),
+                    "textNote": str(body.get("textNote") or ""),
+                    "textOptions": body.get("textOptions") if isinstance(body.get("textOptions"), dict) else None,
                     "copies": max(1, min(100, int(body.get("copies", 1)))),
                     "updatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
                 }
+                if record["textOptions"] is None:
+                    record.pop("textOptions", None)
+                if not record["textNote"]:
+                    record.pop("textNote", None)
                 target_file.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
                 self.send_json(200, {"ok": True, "template": record})
             except Exception as error:
@@ -335,9 +470,33 @@ class Handler(BaseHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(length))
                 copies = max(1, min(100, int(body.get("copies", 1))))
-                encoded = body["image"].split(",", 1)[1]
-                raw_print(png_to_tspl(base64.b64decode(encoded), copies, body.get("settings")))
-                self.send_json(200, {"ok": True, "message": f"Đã gửi {copies} hàng tem tới XP-350B"})
+                target_printer = str(body.get("printer") or "").strip() or None
+                print_mode = str(body.get("printMode") or "auto").strip().lower()
+                settings = body.get("settings")
+                images = body.get("images")
+                if not isinstance(images, list) or not images:
+                    images = [body["image"]]
+
+                effective_printer = target_printer or get_detected_printer()
+                if print_mode == "auto":
+                    use_gdi = not _is_tspl_driver(effective_printer)
+                else:
+                    use_gdi = print_mode == "gdi"
+
+                for img_data in images:
+                    encoded = img_data.split(",", 1)[1] if "," in img_data else img_data
+                    raw_bytes = base64.b64decode(encoded)
+                    if use_gdi:
+                        gdi_print(raw_bytes, copies, effective_printer, settings)
+                    else:
+                        raw_print(png_to_tspl(raw_bytes, copies, settings), effective_printer)
+
+                unit = "tờ/nhãn" if len(images) > 1 else "lệnh"
+                self.send_json(200, {
+                    "ok": True,
+                    "message": f"Đã gửi {len(images)} {unit} (×{copies} bản) tới {effective_printer}",
+                    "printer": effective_printer,
+                })
             except Exception as error:
                 self.send_json(500, {"ok": False, "message": str(error)})
             return

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JsBarcode from 'jsbarcode';
+import A6PrintTab from './components/A6PrintTab.jsx';
+import TextFormatToolbar from './components/TextFormatToolbar.jsx';
+import XprinterRollPreview from './components/XprinterRollPreview.jsx';
+import { DEFAULT_TEXT_OPTIONS, drawAutoFitTextBox, normalizeTextOptions } from './utils/textAutoFit.js';
 
 const MM = 8; // 203 DPI: 8 dots/mm
 
@@ -20,6 +24,14 @@ const DEFAULT_CONFIG = {
 };
 
 export const LAYOUT_DEFAULTS = {
+  text_only: {
+    product: 'KHU VỰC GHI NHỚ',
+    subText: '',
+    price: '',
+    barcode: '',
+    textNote: 'KỆ HÀNG A1\nHÀNG MỚI VỀ',
+    textOptions: { ...DEFAULT_TEXT_OPTIONS },
+  },
   single: {
     product: 'TRỐNG BÔNG 04',
     subText: '',
@@ -41,6 +53,29 @@ export const LAYOUT_DEFAULTS = {
 };
 
 const STORAGE_KEY = 'tien_uyen_printer_config_v9';
+
+// Cấu hình căn lề mặc định riêng cho Mẫu 4 (Chỉ Text) — căn giữa đều trên XP-350B
+const DEFAULT_TEXT_ONLY_CONFIG = {
+  offsetX: -1.5,
+  offsetY: 0,
+  columnGap: 0.4,
+  gap: 3,
+  inset: 1.0,
+};
+
+const TEXT_ONLY_CONFIG_KEY = 'tien_uyen_text_only_config_v1';
+
+// Cấu hình căn lề mặc định riêng cho Mẫu 2 (2 Dòng) — khóa chuẩn Dời dọc Y +2.5 mm
+const DEFAULT_TWO_LINES_CONFIG = {
+  offsetX: -1.5,
+  offsetY: 2.5,
+  columnGap: 0.4,
+  gap: 3,
+  inset: 1.0,
+  subTextOffsetY: -6,
+};
+
+const TWO_LINES_CONFIG_KEY = 'tien_uyen_two_lines_config_v1';
 
 function barcodeCanvas(value, maxAllowedWidth = 220) {
   const canvas = document.createElement('canvas');
@@ -180,7 +215,20 @@ function drawLabel(ctx, x, y, config, data) {
   const isTwoLines = data.nameLayout === 'two_lines';
   const subTextOffsetY = Number(config?.subTextOffsetY !== undefined ? config.subTextOffsetY : -6);
 
-  if (data.nameLayout === 'two_lines_bottom_price') {
+  if (data.nameLayout === 'text_only') {
+    // =========================================================================
+    // BỐ CỤC 4: CHỈ GHI TEXT (TỰ CĂN CỠ CHỮ TO HẾT CỠ & THU NHỎ KHI DÀI)
+    // =========================================================================
+    drawAutoFitTextBox(
+      ctx,
+      safeX,
+      safeY,
+      safeW,
+      safeH,
+      data.textNote !== undefined ? data.textNote : data.product,
+      data.textOptions
+    );
+  } else if (data.nameLayout === 'two_lines_bottom_price') {
     // =========================================================================
     // BỐ CỤC 3: 2 DÒNG + GIÁ ĐÁY DƯỚI BARCODE (THEO BẢN THIẾT KẾ CANVA)
     // =========================================================================
@@ -257,32 +305,44 @@ function drawLabel(ctx, x, y, config, data) {
     // =========================================================================
 
     // 1. DÒNG NHỎ PHÍA TRÊN:
-    // Căn giữa, mở rộng tối đa bề ngang sát mép khung (~260 dots)
-    const subTextW = safeW - 4;
+    // Đo chiều cao dấu thực tế (actualBoundingBoxAscent) để không bao giờ bị cắt chữ ở mép trên
+    const subTextW = safeW - 6;
     const subTextCenterX = safeX + safeW / 2;
-    const subTextY = Math.max(safeY + 2, Math.min(safeY + 24, safeY + 11 + subTextOffsetY));
+    let subBottomY = safeY + 14;
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    const subSize = fitText(ctx, subText, subTextW, 15.5, 500, 7);
-    ctx.font = `500 ${subSize}px Arial, sans-serif`;
-    ctx.fillText(subText, subTextCenterX, subTextY);
+    if (subText) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      const subSize = fitText(ctx, subText, subTextW, 14.5, 500, 7);
+      ctx.font = `500 ${subSize}px Arial, sans-serif`;
+      const subMetrics = ctx.measureText(subText);
+      const subAscent = Math.ceil(subMetrics.actualBoundingBoxAscent || subSize * 0.92);
+      const subDescent = Math.ceil(subMetrics.actualBoundingBoxDescent || 3);
+
+      const minSafeSubY = y + Math.max(4, Math.round(inset * 0.5)) + subAscent;
+      const maxSafeSubY = safeY + 21;
+      const desiredSubY = safeY + 16 + subTextOffsetY;
+      const subTextY = Math.max(minSafeSubY, Math.min(maxSafeSubY, desiredSubY));
+
+      ctx.fillText(subText, subTextCenterX, subTextY);
+      subBottomY = subTextY + subDescent;
+    }
 
     // 2. THƯƠNG HIỆU XOAY DỌC BÊN TRÁI:
-    // Nằm hoàn toàn bên dưới dòng nhỏ (từ safeY + 22 đến safeY + safeH - 4)
-    // Canh giữa hoàn hảo trong khoảng chiều cao còn lại bên cạnh dòng lớn + giá + barcode
+    // Nằm hoàn toàn dưới dòng nhỏ và căn đáy ngang mã số barcode để không sát viền dưới tem
     if (hasBrand) {
       ctx.save();
-      const brandTopLimit = safeY + 16;
-      const brandBottomLimit = safeY + safeH - 2;
-      const brandAvailableHeight = brandBottomLimit - brandTopLimit;
+      const brandTopLimit = Math.max(safeY + 18, subBottomY + 4);
+      const canvasBottomCap = ctx.canvas ? ctx.canvas.height - 9 : y + h - 8;
+      const brandBottomLimit = Math.min(safeY + 139, canvasBottomCap);
+      const brandAvailableHeight = Math.max(24, brandBottomLimit - brandTopLimit);
       const brandCenterY = brandTopLimit + brandAvailableHeight / 2;
 
       ctx.translate(safeX + 18, brandCenterY);
       ctx.rotate(-Math.PI / 2);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const brandSize = fitText(ctx, brandText, brandAvailableHeight - 4, 38, 400, 9);
+      const brandSize = fitText(ctx, brandText, brandAvailableHeight - 4, 34, 400, 9);
       ctx.font = `400 ${brandSize}px Arial, sans-serif`;
 
       let displayText = brandText;
@@ -295,32 +355,32 @@ function drawLabel(ctx, x, y, config, data) {
       ctx.restore();
     }
 
-    // 3. CÁC NỘI DUNG DÒNG LỚN, GIÁ, BARCODE: Căn giữa cân đối theo trục dọc
+    // 3. CÁC NỘI DUNG DÒNG LỚN, GIÁ, BARCODE: Căn đối xứng, thoáng mép trên/dưới
     const contentX = hasBrand ? safeX + 40 : safeX + 10;
     const contentW = hasBrand ? safeW - 44 : safeW - 20;
     const contentCenterX = contentX + contentW / 2;
 
-    // 3.1 Dòng lớn tên sản phẩm chính (Nổi bật, to rõ, căn giữa)
+    // 3.1 Dòng lớn tên sản phẩm chính (cách thoáng dưới dòng nhỏ)
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    const productSize = fitText(ctx, data.product, contentW, 25, 700, 9);
+    const productSize = fitText(ctx, data.product, contentW, 24, 700, 9);
     ctx.font = `700 ${productSize}px Arial, sans-serif`;
-    ctx.fillText(data.product, contentCenterX, safeY + 36);
+    ctx.fillText(data.product, contentCenterX, safeY + 41);
 
     // 3.2 Giá bán: Căn giữa, chữ "GIÁ : " thường, số tiền in đậm
-    drawPriceLine(ctx, data.price, contentCenterX, safeY + 62, contentW, 26);
+    drawPriceLine(ctx, data.price, contentCenterX, safeY + 65, contentW, 25);
 
     // 3.3 Barcode (Chuẩn Code 128 tỷ lệ 1:1 module nguyên, căn giữa)
     const barcode = barcodeCanvas(data.barcode, contentW);
     const bcDrawW = Math.min(barcode.width, contentW);
     const bcX = Math.round(contentCenterX - bcDrawW / 2);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(barcode, 0, 0, barcode.width, barcode.height, bcX, safeY + 71, bcDrawW, 46);
+    ctx.drawImage(barcode, 0, 0, barcode.width, barcode.height, bcX, safeY + 73, bcDrawW, 43);
 
-    // 3.4 Mã số Barcode bên dưới: Căn giữa
+    // 3.4 Mã số Barcode bên dưới: ngang tầm chân chữ brand
     ctx.textAlign = 'center';
-    ctx.font = '400 20px Arial, sans-serif';
-    ctx.fillText(data.barcode, contentCenterX, safeY + 143);
+    ctx.font = '400 19px Arial, sans-serif';
+    ctx.fillText(data.barcode, contentCenterX, safeY + 139);
   } else {
     // =========================================================================
     // BỐ CỤC 1 DÒNG CHUẨN (Option cũ giữ nguyên 100%)
@@ -468,6 +528,8 @@ function TemplateSingleLabelPreview({ tpl, config, onClick, mini = false }) {
         nameLayout: tpl.nameLayout || (tpl.subText ? 'two_lines' : 'single'),
         price: formatVNCurrency(tpl.price) || '0đ',
         barcode: (tpl.barcode || '').trim() || '0',
+        textNote: tpl.textNote ?? tpl.product ?? '',
+        textOptions: tpl.textOptions,
       }
     );
   }, [tpl, config?.subTextOffsetY]);
@@ -602,7 +664,9 @@ function PaginationControls({ total, currentPage, pageSize, onPageChange, onPage
 export default function App() {
 
   const canvasRef = useRef(null);
-  const [mode, setMode] = useState('label'); // 'label' | 'templates' | 'calibration'
+  const [previewTick, setPreviewTick] = useState(0);
+  const [mode, setMode] = useState('label'); // 'label' | 'a6' | 'templates' | 'calibration'
+  const [a6Status, setA6Status] = useState({ kind: 'idle', text: 'Đang kiểm tra máy in A6…' });
   
   const [config, setConfig] = useState(() => {
     try {
@@ -610,6 +674,22 @@ export default function App() {
       if (saved) return { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
     } catch (_) {}
     return DEFAULT_CONFIG;
+  });
+
+  const [textOnlyConfig, setTextOnlyConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem(TEXT_ONLY_CONFIG_KEY);
+      if (saved) return { ...DEFAULT_TEXT_ONLY_CONFIG, ...JSON.parse(saved) };
+    } catch (_) {}
+    return DEFAULT_TEXT_ONLY_CONFIG;
+  });
+
+  const [twoLinesConfig, setTwoLinesConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem(TWO_LINES_CONFIG_KEY);
+      if (saved) return { ...DEFAULT_TWO_LINES_CONFIG, ...JSON.parse(saved) };
+    } catch (_) {}
+    return DEFAULT_TWO_LINES_CONFIG;
   });
 
   const [brand, setBrand] = useState(() => {
@@ -636,6 +716,45 @@ export default function App() {
     return 'two_lines_bottom_price';
   });
 
+  const isTextOnlyMode = nameLayout === 'text_only';
+  const isTwoLinesMode = nameLayout === 'two_lines';
+
+  const layoutConfigMeta = isTextOnlyMode
+    ? {
+        shortTag: 'Mẫu 4 (Chỉ Text)',
+        badge: 'Chuẩn giữa: X -1.5 · Y 0',
+        note: 'Cài đặt này được lưu tách biệt hoàn toàn với Mẫu 1 / Mẫu 2 / Mẫu 3 để không làm lệch tem sản phẩm cũ.',
+        modalTitle: '⚙️ Căn Lề Riêng — Mẫu 4: Chỉ Text',
+        sectionTitle: '🎯 Tọa Độ Căn Giữa (Mẫu 4: Chỉ Text)',
+        resetLabel: '↺ Về Chuẩn Mẫu 4 (-1.5 / 0)',
+        storageKey: TEXT_ONLY_CONFIG_KEY,
+        defaults: DEFAULT_TEXT_ONLY_CONFIG,
+        state: textOnlyConfig,
+        setter: setTextOnlyConfig,
+        saveToast: '🔒 Đã lưu cấu hình căn lề riêng cho Mẫu 4: Chỉ Text!',
+        resetToast: '↺ Đã khôi phục cài đặt chuẩn giữa cho Mẫu 4: Chỉ Text (X -1.5 · Y 0)!',
+      }
+    : isTwoLinesMode
+      ? {
+          shortTag: 'Mẫu 2 (2 Dòng)',
+          badge: 'Chuẩn Mẫu 2: X -1.5 · Y +2.5',
+          note: 'Cài đặt này được lưu riêng cho Mẫu 2 (2 Dòng) để tối ưu dòng nhỏ phía trên và căn đều chữ thương hiệu.',
+          modalTitle: '⚙️ Căn Lề Riêng — Mẫu 2: 2 Dòng',
+          sectionTitle: '🎯 Tọa Độ Căn Khung (Mẫu 2: 2 Dòng)',
+          resetLabel: '↺ Về Chuẩn Mẫu 2 (-1.5 / +2.5)',
+          storageKey: TWO_LINES_CONFIG_KEY,
+          defaults: DEFAULT_TWO_LINES_CONFIG,
+          state: twoLinesConfig,
+          setter: setTwoLinesConfig,
+          saveToast: '🔒 Đã lưu cấu hình căn lề riêng cho Mẫu 2: 2 Dòng!',
+          resetToast: '↺ Đã khôi phục cài đặt chuẩn cho Mẫu 2: 2 Dòng (X -1.5 · Y +2.5)!',
+        }
+      : null;
+
+  const effectiveLabelConfig = layoutConfigMeta ? { ...config, ...layoutConfigMeta.state } : config;
+  const activeOffsetCfg = layoutConfigMeta ? layoutConfigMeta.state : config;
+  const updateOffsetCfg = layoutConfigMeta ? layoutConfigMeta.setter : setConfig;
+
   const [product, setProduct] = useState(() => {
     const active = localStorage.getItem('tien_uyen_active_layout_v2') || 'two_lines_bottom_price';
     return (layoutCache[active] || LAYOUT_DEFAULTS[active] || LAYOUT_DEFAULTS.two_lines_bottom_price).product;
@@ -651,6 +770,17 @@ export default function App() {
   const [barcode, setBarcode] = useState(() => {
     const active = localStorage.getItem('tien_uyen_active_layout_v2') || 'two_lines_bottom_price';
     return (layoutCache[active] || LAYOUT_DEFAULTS[active] || LAYOUT_DEFAULTS.two_lines_bottom_price).barcode;
+  });
+
+  const [textNote, setTextNote] = useState(() => {
+    const active = localStorage.getItem('tien_uyen_active_layout_v2') || 'two_lines_bottom_price';
+    const entry = layoutCache[active] || LAYOUT_DEFAULTS[active] || LAYOUT_DEFAULTS.text_only;
+    return entry.textNote !== undefined ? entry.textNote : LAYOUT_DEFAULTS.text_only.textNote;
+  });
+  const [textOptions, setTextOptions] = useState(() => {
+    const active = localStorage.getItem('tien_uyen_active_layout_v2') || 'two_lines_bottom_price';
+    const entry = layoutCache[active] || LAYOUT_DEFAULTS[active];
+    return normalizeTextOptions(entry?.textOptions);
   });
 
   function updateLayoutField(field, val) {
@@ -690,9 +820,20 @@ export default function App() {
     updateLayoutField('barcode', val);
   }
 
+  function handleTextNoteChange(val) {
+    setTextNote(val);
+    updateLayoutField('textNote', val);
+  }
+
+  function handleTextOptionsChange(val) {
+    const normalized = normalizeTextOptions(val);
+    setTextOptions(normalized);
+    updateLayoutField('textOptions', normalized);
+  }
+
   function handleSwitchLayout(newLayout) {
     if (newLayout === nameLayout) return;
-    const currentData = { product, subText, price, barcode };
+    const currentData = { product, subText, price, barcode, textNote, textOptions };
     const targetData = layoutCache[newLayout] || LAYOUT_DEFAULTS[newLayout];
 
     setLayoutCache((prev) => {
@@ -711,7 +852,9 @@ export default function App() {
     setProduct(targetData.product);
     setSubText(targetData.subText);
     setPrice(targetData.price);
-    setBarcode(targetData.barcode);
+    setBarcode(targetData.barcode ?? '');
+    if (targetData.textNote !== undefined) setTextNote(targetData.textNote);
+    if (targetData.textOptions !== undefined) setTextOptions(normalizeTextOptions(targetData.textOptions));
     setSelectedTemplateId(null);
   }
 
@@ -720,7 +863,9 @@ export default function App() {
     setProduct(d.product);
     setSubText(d.subText);
     setPrice(d.price);
-    setBarcode(d.barcode);
+    setBarcode(d.barcode ?? '');
+    if (d.textNote !== undefined) setTextNote(d.textNote);
+    if (d.textOptions !== undefined) setTextOptions(normalizeTextOptions(d.textOptions));
     setLayoutCache((prev) => {
       const updated = {
         ...prev,
@@ -732,7 +877,7 @@ export default function App() {
       return updated;
     });
     triggerToast(`↺ Đã nạp lại nội dung mặc định cho ${
-      nameLayout === 'single' ? 'Mẫu 1: 1 Dòng (Chuẩn)' : nameLayout === 'two_lines' ? 'Mẫu 2: 2 Dòng (Giá trên)' : 'Mẫu 3: Mẫu Size (Giá đáy)'
+      nameLayout === 'single' ? 'Mẫu 1: 1 Dòng (Chuẩn)' : nameLayout === 'two_lines' ? 'Mẫu 2: 2 Dòng (Giá trên)' : nameLayout === 'text_only' ? 'Mẫu 4: Chỉ Text' : 'Mẫu 3: Mẫu Size (Giá đáy)'
     }!`);
   }
   const [copies, setCopies] = useState(1);
@@ -767,7 +912,7 @@ export default function App() {
   const duplicateGroups = useMemo(() => {
     const map = new Map();
     templates.forEach((t) => {
-      const prodKey = (t.product || t.name || '').trim().toLowerCase();
+      const prodKey = (t.nameLayout === 'text_only' ? (t.textNote || t.name) : (t.product || t.name || '')).trim().toLowerCase();
       const barKey = (t.barcode || '').trim().toLowerCase();
       const key = `${prodKey}____${barKey}`;
       if (!map.has(key)) {
@@ -817,6 +962,8 @@ export default function App() {
     nameLayout: nameLayout,
     price: formatVNCurrency(price) || '0đ',
     barcode: barcode.trim() || '0',
+    textNote: textNote,
+    textOptions: textOptions,
   };
 
   function triggerToast(msg) {
@@ -881,21 +1028,39 @@ export default function App() {
   }
 
   async function handleSaveCurrentAsTemplate() {
-    const name = templateNameInput.trim() || product.trim() || 'Mẫu tem mới';
+    const fallbackName = nameLayout === 'text_only'
+      ? (textNote.split('\n').find((l) => l.trim()) || 'Ghi chú text').trim().slice(0, 40)
+      : product.trim();
+    const name = templateNameInput.trim() || fallbackName || 'Mẫu tem mới';
     try {
       const res = await fetch('/api/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name,
-          brand: brand,
-          product: product,
-          subText: subText,
-          nameLayout: nameLayout,
-          price: formatVNCurrency(price) || '0₫',
-          barcode: barcode,
-          copies: copies,
-        }),
+        body: JSON.stringify(
+          nameLayout === 'text_only'
+            ? {
+                name: name,
+                brand: '',
+                product: name,
+                subText: '',
+                nameLayout: 'text_only',
+                price: '',
+                barcode: '',
+                textNote: textNote,
+                textOptions: textOptions,
+                copies: copies,
+              }
+            : {
+                name: name,
+                brand: brand,
+                product: product,
+                subText: subText,
+                nameLayout: nameLayout,
+                price: formatVNCurrency(price) || '0₫',
+                barcode: barcode,
+                copies: copies,
+              }
+        ),
       });
       const json = await res.json();
       if (json.ok) {
@@ -918,7 +1083,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...editFormData,
-          price: formatVNCurrency(editFormData.price) || '0₫',
+          price: editFormData.nameLayout === 'text_only' ? '' : (formatVNCurrency(editFormData.price) || '0₫'),
         }),
       });
       const json = await res.json();
@@ -995,6 +1160,12 @@ export default function App() {
     setNameLayout(tpl.nameLayout || (tpl.subText ? 'two_lines' : 'single'));
     if (tpl.price) setPrice(formatPriceNumber(tpl.price));
     if (tpl.barcode) setBarcode(tpl.barcode);
+    if (tpl.nameLayout === 'text_only' || tpl.textNote !== undefined) {
+      setTextNote(tpl.textNote ?? tpl.product ?? '');
+    }
+    if (tpl.textOptions) {
+      setTextOptions(normalizeTextOptions(tpl.textOptions));
+    }
     if (tpl.copies) setCopies(tpl.copies);
     setSelectedTemplateId(tpl.id);
     setMode('label');
@@ -1004,6 +1175,8 @@ export default function App() {
   function handleSaveConfig() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      localStorage.setItem(TEXT_ONLY_CONFIG_KEY, JSON.stringify(textOnlyConfig));
+      localStorage.setItem(TWO_LINES_CONFIG_KEY, JSON.stringify(twoLinesConfig));
       localStorage.setItem('xprinter_store_brand', brand);
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 3000);
@@ -1013,21 +1186,55 @@ export default function App() {
   function resetDefaultConfig() {
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TEXT_ONLY_CONFIG_KEY);
+      localStorage.removeItem(TWO_LINES_CONFIG_KEY);
       localStorage.removeItem('tien_uyen_printer_config_v8');
       localStorage.removeItem('xprinter_store_brand');
       localStorage.removeItem('tien_uyen_layout_cache_v2');
       localStorage.removeItem('tien_uyen_active_layout_v2');
     } catch (_) {}
     setConfig(DEFAULT_CONFIG);
+    setTextOnlyConfig(DEFAULT_TEXT_ONLY_CONFIG);
+    setTwoLinesConfig(DEFAULT_TWO_LINES_CONFIG);
     setBrand('TIẾN UYÊN');
     setNameLayout('two_lines_bottom_price');
     const d3 = LAYOUT_DEFAULTS.two_lines_bottom_price;
+    setTextNote(LAYOUT_DEFAULTS.text_only.textNote);
+    setTextOptions({ ...DEFAULT_TEXT_OPTIONS });
     setProduct(d3.product);
     setSubText(d3.subText);
     setPrice(d3.price);
     setBarcode(d3.barcode);
     setLayoutCache(LAYOUT_DEFAULTS);
     triggerToast('↺ Đã khôi phục cài đặt gốc & nạp Mẫu 3: Mẫu Size (Giá đáy)!');
+  }
+
+  function handleSaveOffsetModal() {
+    if (layoutConfigMeta) {
+      try {
+        localStorage.setItem(layoutConfigMeta.storageKey, JSON.stringify(layoutConfigMeta.state));
+      } catch (_) {}
+      setShowOffsetModal(false);
+      triggerToast(layoutConfigMeta.saveToast);
+      return;
+    }
+    handleSaveConfig();
+    setShowOffsetModal(false);
+    triggerToast('🔒 Đã lưu và khóa cấu hình vào máy tính!');
+  }
+
+  function handleResetOffsetModal() {
+    if (layoutConfigMeta) {
+      try {
+        localStorage.removeItem(layoutConfigMeta.storageKey);
+      } catch (_) {}
+      layoutConfigMeta.setter(layoutConfigMeta.defaults);
+      setShowOffsetModal(false);
+      triggerToast(layoutConfigMeta.resetToast);
+      return;
+    }
+    resetDefaultConfig();
+    setShowOffsetModal(false);
   }
 
   useEffect(() => {
@@ -1037,10 +1244,25 @@ export default function App() {
   }, [config]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(TEXT_ONLY_CONFIG_KEY, JSON.stringify(textOnlyConfig));
+    } catch (_) {}
+  }, [textOnlyConfig]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TWO_LINES_CONFIG_KEY, JSON.stringify(twoLinesConfig));
+    } catch (_) {}
+  }, [twoLinesConfig]);
+
+  useEffect(() => {
     if (!canvasRef.current) return;
     if (mode === 'calibration') renderCalibrationCanvas(canvasRef.current, config);
-    else renderCanvas(canvasRef.current, config, data);
-  }, [brand, product, subText, nameLayout, price, barcode, mode, config]);
+    else {
+      renderCanvas(canvasRef.current, effectiveLabelConfig, data);
+      setPreviewTick((t) => t + 1);
+    }
+  }, [brand, product, subText, nameLayout, price, barcode, textNote, textOptions, mode, config, textOnlyConfig, twoLinesConfig]);
 
   useEffect(() => {
     fetch('/api/status')
@@ -1061,9 +1283,9 @@ export default function App() {
           image: canvas.toDataURL('image/png'),
           copies: Number(customCopies !== null ? customCopies : copies) || 1,
           settings: {
-            paperWidth: config.paperWidth,
-            paperHeight: config.labelHeight,
-            gap: config.gap,
+            paperWidth: effectiveLabelConfig.paperWidth,
+            paperHeight: effectiveLabelConfig.labelHeight,
+            gap: effectiveLabelConfig.gap,
           },
         }),
       });
@@ -1096,7 +1318,8 @@ export default function App() {
         (tpl.name || '').toLowerCase().includes(q) ||
         (tpl.product || '').toLowerCase().includes(q) ||
         (tpl.barcode || '').toLowerCase().includes(q) ||
-        (tpl.brand || '').toLowerCase().includes(q)
+        (tpl.brand || '').toLowerCase().includes(q) ||
+        (tpl.textNote || '').toLowerCase().includes(q)
       );
     });
 
@@ -1150,6 +1373,7 @@ export default function App() {
   }, [sortedDuplicateGroups, safeDuplicatePage, templatePageSize]);
 
   const activeTemplate = templates.find((t) => t.id === selectedTemplateId);
+  const activeHeaderStatus = mode === 'a6' ? a6Status : status;
 
   return (
     <div className="app-layout">
@@ -1172,12 +1396,12 @@ export default function App() {
             </div>
             <div>
               <div className="brand-title-wrap">
-                <span className="brand-title">In Tem Sản Phẩm 2 Hàng</span>
-                <span className="badge-tag">XP-350B</span>
+                <span className="brand-title">{mode === 'a6' ? 'In Đơn Text A6' : 'In Tem Sản Phẩm 2 Hàng'}</span>
+                <span className="badge-tag">{mode === 'a6' ? 'Đơn A6' : 'XP-350B'}</span>
               </div>
               <div className="status-indicator">
-                <span className={`status-dot ${status.kind === 'error' ? 'error' : status.kind === 'busy' ? 'busy' : ''}`} />
-                <span>{status.text || 'Khổ 76mm · Sẵn sàng in'}</span>
+                <span className={`status-dot ${activeHeaderStatus.kind === 'error' ? 'error' : activeHeaderStatus.kind === 'busy' ? 'busy' : ''}`} />
+                <span>{activeHeaderStatus.text || 'Khổ 76mm · Sẵn sàng in'}</span>
               </div>
             </div>
           </div>
@@ -1193,6 +1417,17 @@ export default function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10M7 11h10M7 15h6" />
               </svg>
               <span>Bàn In Tem</span>
+            </button>
+
+            <button
+              type="button"
+              className={`nav-tab-btn ${mode === 'a6' ? 'active' : ''}`}
+              onClick={() => setMode('a6')}
+            >
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>In Đơn A6</span>
             </button>
 
             <button
@@ -1251,7 +1486,11 @@ export default function App() {
                 <div>
                   <div className="quick-tpl-label">Mẫu sản phẩm đang chọn</div>
                   <div className="quick-tpl-name">
-                    {activeTemplate ? activeTemplate.name : product || 'Chưa lưu mẫu'}
+                    {activeTemplate
+                      ? activeTemplate.name
+                      : nameLayout === 'text_only'
+                        ? (textNote.split('\n').find((l) => l.trim()) || 'Chỉ Text (Ghi nhớ)')
+                        : product || 'Chưa lưu mẫu'}
                   </div>
                 </div>
               </div>
@@ -1287,7 +1526,11 @@ export default function App() {
                   className="btn-subtle"
                   style={{ color: '#059669', borderColor: '#a7f3d0', background: '#ecfdf5' }}
                   onClick={() => {
-                    setTemplateNameInput(product);
+                    setTemplateNameInput(
+                      nameLayout === 'text_only'
+                        ? (textNote.split('\n').find((l) => l.trim()) || 'Ghi chú text').trim().slice(0, 40)
+                        : product
+                    );
                     setShowSaveModal(true);
                   }}
                 >
@@ -1318,23 +1561,25 @@ export default function App() {
                 </div>
 
                 {/* Brand input */}
-                <div className="form-group">
-                  <div className="form-label-row">
-                    <label className="form-label">Tên thương hiệu / Cửa hàng</label>
-                    <span className="form-hint">Tự động co chữ vừa khung</span>
+                {nameLayout !== 'text_only' && (
+                  <div className="form-group">
+                    <div className="form-label-row">
+                      <label className="form-label">Tên thương hiệu / Cửa hàng</label>
+                      <span className="form-hint">Tự động co chữ vừa khung</span>
+                    </div>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={brand}
+                      onChange={(e) => {
+                        setBrand(e.target.value);
+                        try { localStorage.setItem('xprinter_store_brand', e.target.value); } catch (_) {}
+                      }}
+                      placeholder="VD: TIẾN UYÊN (hoặc để trống)"
+                      maxLength={40}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={brand}
-                    onChange={(e) => {
-                      setBrand(e.target.value);
-                      try { localStorage.setItem('xprinter_store_brand', e.target.value); } catch (_) {}
-                    }}
-                    placeholder="VD: TIẾN UYÊN (hoặc để trống)"
-                    maxLength={40}
-                  />
-                </div>
+                )}
 
                 {/* Chế độ bố cục tem: Mẫu 1 (1 dòng chuẩn) vs Mẫu 2 (2 dòng giá trên) vs Mẫu 3 (Mẫu size giá đáy) */}
                 <div className="form-group">
@@ -1360,10 +1605,57 @@ export default function App() {
                     >
                       <span>Mẫu 3: Mẫu Size</span>
                     </button>
+                    <button
+                      type="button"
+                      className={`btn-layout-pill ${nameLayout === 'text_only' ? 'active' : ''}`}
+                      onClick={() => handleSwitchLayout('text_only')}
+                    >
+                      <span>Mẫu 4: Chỉ Text</span>
+                    </button>
                   </div>
                 </div>
 
-                {nameLayout === 'two_lines' || nameLayout === 'two_lines_bottom_price' ? (
+                {nameLayout === 'text_only' ? (
+                  <div className="form-group">
+                    <div className="form-label-row" style={{ gap: '8px' }}>
+                      <label className="form-label" style={{ color: '#0f172a', margin: 0 }}>
+                        Nội dung ghi nhớ (Chỉ Text)
+                      </label>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          style={{ whiteSpace: 'nowrap' }}
+                          onClick={() => handleTextNoteChange('')}
+                        >
+                          Xóa chữ
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          style={{ fontSize: '11px', color: '#0284c7', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}
+                          onClick={() => setShowOffsetModal(true)}
+                          title="Bấm để mở popup căn chỉnh vị trí & lề in riêng cho Mẫu 4: Chỉ Text"
+                        >
+                          <span>⚙️ Căn lề Setting</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <TextFormatToolbar
+                      value={textOptions}
+                      onChange={handleTextOptionsChange}
+                    />
+
+                    <textarea
+                      className="form-control text-area-editor"
+                      rows={4}
+                      value={textNote}
+                      onChange={(e) => handleTextNoteChange(e.target.value)}
+                      placeholder={'Nhập text bất kỳ để dán ghi nhớ...\nVí dụ:\nKỆ HÀNG A1\nHÀNG MỚI VỀ'}
+                    />
+                  </div>
+                ) : nameLayout === 'two_lines' || nameLayout === 'two_lines_bottom_price' ? (
                   <>
                     {/* Dòng nhỏ phía trên (subText) - Gọn gàng, kèm nút bánh răng mở popup */}
                     <div className="form-group">
@@ -1440,33 +1732,35 @@ export default function App() {
                 )}
 
                 {/* Price & Barcode in grid */}
-                <div className="form-row-2 form-group">
-                  <div>
-                    <label className="form-label">Giá bán</label>
-                    <div className="input-with-suffix">
+                {nameLayout !== 'text_only' && (
+                  <div className="form-row-2 form-group">
+                    <div>
+                      <label className="form-label">Giá bán</label>
+                      <div className="input-with-suffix">
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={price}
+                          onChange={(e) => handlePriceChange(formatPriceNumber(e.target.value, price))}
+                          placeholder="1,000,000"
+                          maxLength={18}
+                        />
+                        <span className="input-suffix-badge">₫</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="form-label">Mã barcode (CODE128)</label>
                       <input
                         type="text"
-                        className="form-control"
-                        value={price}
-                        onChange={(e) => handlePriceChange(formatPriceNumber(e.target.value, price))}
-                        placeholder="1,000,000"
-                        maxLength={18}
+                        className="form-control mono"
+                        value={barcode}
+                        onChange={(e) => handleBarcodeChange(e.target.value.replace(/[^0-9A-Za-z._-]/g, ''))}
+                        placeholder="893751041"
+                        maxLength={32}
                       />
-                      <span className="input-suffix-badge">₫</span>
                     </div>
                   </div>
-                  <div>
-                    <label className="form-label">Mã barcode (CODE128)</label>
-                    <input
-                      type="text"
-                      className="form-control mono"
-                      value={barcode}
-                      onChange={(e) => handleBarcodeChange(e.target.value.replace(/[^0-9A-Za-z._-]/g, ''))}
-                      placeholder="893751041"
-                      maxLength={32}
-                    />
-                  </div>
-                </div>
+                )}
 
                 {/* Copies Counter & Quick Presets */}
                 <div className="form-group" style={{ paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
@@ -1534,14 +1828,23 @@ export default function App() {
                 </div>
 
                 <div className="preview-canvas-box" style={{ width: '100%' }}>
-                  <div className="canvas-wrapper">
-                    <canvas ref={canvasRef} />
-                  </div>
+                  {/* Master 203-DPI bitmap canvas kept hidden purely for pixel-accurate TSPL printing */}
+                  <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+                  <XprinterRollPreview
+                    sourceCanvasRef={canvasRef}
+                    renderTick={previewTick}
+                    config={effectiveLabelConfig}
+                    baselineOffsetY={isTextOnlyMode ? 0 : DEFAULT_CONFIG.offsetY}
+                    copies={copies}
+                    status={status}
+                  />
 
                   <div className="preview-tags-row">
-                    <span><i className="preview-tag-dot" style={{ background: '#3b82f6' }}></i> Tem Trái: 35×22mm</span>
-                    <span><i className="preview-tag-dot" style={{ background: '#f59e0b' }}></i> Khe rãnh: {config.columnGap}mm</span>
-                    <span><i className="preview-tag-dot" style={{ background: '#6366f1' }}></i> Tem Phải: 35×22mm</span>
+                    <span><i className="preview-tag-dot" style={{ background: '#3b82f6' }}></i> Tem Trái: {effectiveLabelConfig.labelWidth}×{effectiveLabelConfig.labelHeight}mm</span>
+                    <span><i className="preview-tag-dot" style={{ background: '#f59e0b' }}></i> Khe rãnh: {effectiveLabelConfig.columnGap}mm</span>
+                    <span><i className="preview-tag-dot" style={{ background: '#6366f1' }}></i> Tem Phải: {effectiveLabelConfig.labelWidth}×{effectiveLabelConfig.labelHeight}mm</span>
+                    <span><i className="preview-tag-dot" style={{ background: '#10b981' }}></i> Gap hàng: {effectiveLabelConfig.gap}mm</span>
                   </div>
                 </div>
 
@@ -2155,22 +2458,35 @@ export default function App() {
                                   <TemplateSingleLabelPreview tpl={tpl} config={config} mini onClick={() => applyTemplateToPrint(tpl)} />
                                 </td>
                                 <td>
-                                  {tpl.subText && (
-                                    <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600, marginBottom: '2px' }}>
-                                      {tpl.subText}
-                                    </div>
-                                  )}
-                                  <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
-                                    {tpl.product || tpl.name}
-                                  </div>
-                                  {tpl.product && tpl.name !== tpl.product && (
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                      Mẫu: {tpl.name}
-                                    </div>
+                                  {tpl.nameLayout === 'text_only' ? (
+                                    <>
+                                      <div style={{ fontWeight: 800, fontSize: '13px', color: 'var(--text-main)', whiteSpace: 'pre-line' }}>
+                                        {tpl.textNote || tpl.product || tpl.name}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: '#0e7490', fontWeight: 600, marginTop: '2px' }}>
+                                        Mẫu: {tpl.name} · Chỉ Text
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {tpl.subText && (
+                                        <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600, marginBottom: '2px' }}>
+                                          {tpl.subText}
+                                        </div>
+                                      )}
+                                      <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
+                                        {tpl.product || tpl.name}
+                                      </div>
+                                      {tpl.product && tpl.name !== tpl.product && (
+                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                          Mẫu: {tpl.name}
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </td>
                                 <td>
-                                  {tpl.brand ? (
+                                  {tpl.nameLayout !== 'text_only' && tpl.brand ? (
                                     <span className="tpl-brand-badge">{tpl.brand}</span>
                                   ) : (
                                     <span style={{ color: 'var(--text-sub)', fontSize: '12px' }}>—</span>
@@ -2178,13 +2494,17 @@ export default function App() {
                                 </td>
                                 <td>
                                   <span className="tpl-barcode-num" style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
-                                    {tpl.barcode || '—'}
+                                    {tpl.nameLayout === 'text_only' ? '—' : (tpl.barcode || '—')}
                                   </span>
                                 </td>
                                 <td>
-                                  <span style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '14px' }}>
-                                    {formatVNCurrency(tpl.price) || '0₫'}
-                                  </span>
+                                  {tpl.nameLayout === 'text_only' ? (
+                                    <span className="badge-tag" style={{ background: '#ecfeff', color: '#0e7490' }}>Chỉ Text</span>
+                                  ) : (
+                                    <span style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '14px' }}>
+                                      {formatVNCurrency(tpl.price) || '0₫'}
+                                    </span>
+                                  )}
                                 </td>
                                 <td>
                                   <span className="tpl-copies-badge">
@@ -2260,6 +2580,14 @@ export default function App() {
               )
             )}
           </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* ============================================================== */}
+        {/* TAB A6: IN ĐƠN TEXT A6 (100x150mm / Tùy chỉnh)                 */}
+        {/* ============================================================== */}
+        {mode === 'a6' && (
+          <A6PrintTab onStatusChange={setA6Status} triggerToast={triggerToast} />
         )}
 
         {/* ============================================================== */}
@@ -2414,13 +2742,19 @@ export default function App() {
               </div>
 
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', fontSize: '12px', color: '#475467', lineHeight: 1.6 }}>
-                <div><strong>Thương hiệu:</strong> {brand || '(Trống)'}</div>
-                <div><strong>Bố cục:</strong> {nameLayout === 'two_lines_bottom_price' ? 'Mẫu 3: Mẫu Size' : nameLayout === 'two_lines' ? 'Mẫu 2: 2 Dòng' : 'Mẫu 1: 1 Dòng'}</div>
-                {(nameLayout === 'two_lines' || nameLayout === 'two_lines_bottom_price') && subText && (
-                  <div><strong>Dòng nhỏ trên:</strong> {subText}</div>
+                <div><strong>Bố cục:</strong> {nameLayout === 'two_lines_bottom_price' ? 'Mẫu 3: Mẫu Size' : nameLayout === 'two_lines' ? 'Mẫu 2: 2 Dòng' : nameLayout === 'text_only' ? 'Mẫu 4: Chỉ Text' : 'Mẫu 1: 1 Dòng'}</div>
+                {nameLayout === 'text_only' ? (
+                  <div style={{ whiteSpace: 'pre-line', marginTop: '4px' }}><strong>Nội dung text:</strong>{'\n'}{textNote || '(Trống)'}</div>
+                ) : (
+                  <>
+                    <div><strong>Thương hiệu:</strong> {brand || '(Trống)'}</div>
+                    {(nameLayout === 'two_lines' || nameLayout === 'two_lines_bottom_price') && subText && (
+                      <div><strong>Dòng nhỏ trên:</strong> {subText}</div>
+                    )}
+                    <div><strong>Tên tem:</strong> {product}</div>
+                    <div><strong>Giá:</strong> {getDisplayPrice(price)} | <strong>Barcode:</strong> {barcode}</div>
+                  </>
                 )}
-                <div><strong>Tên tem:</strong> {product}</div>
-                <div><strong>Giá:</strong> {getDisplayPrice(price)} | <strong>Barcode:</strong> {barcode}</div>
               </div>
             </div>
 
@@ -2461,16 +2795,18 @@ export default function App() {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Thương hiệu</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={editFormData.brand || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, brand: e.target.value })}
-                  placeholder="TIẾN UYÊN"
-                />
-              </div>
+              {editFormData.nameLayout !== 'text_only' && (
+                <div className="form-group">
+                  <label className="form-label">Thương hiệu</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={editFormData.brand || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, brand: e.target.value })}
+                    placeholder="TIẾN UYÊN"
+                  />
+                </div>
+              )}
 
               {/* Layout mode toggle */}
               <div className="form-group">
@@ -2497,10 +2833,32 @@ export default function App() {
                   >
                     <span>Mẫu 3: Mẫu Size</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`btn-layout-pill ${editFormData.nameLayout === 'text_only' ? 'active' : ''}`}
+                    onClick={() => setEditFormData({ ...editFormData, nameLayout: 'text_only' })}
+                  >
+                    <span>Mẫu 4: Chỉ Text</span>
+                  </button>
                 </div>
               </div>
 
-              {editFormData.nameLayout === 'two_lines' || editFormData.nameLayout === 'two_lines_bottom_price' ? (
+              {editFormData.nameLayout === 'text_only' ? (
+                <div className="form-group">
+                  <label className="form-label">Nội dung text (xuống hàng & tự co chữ)</label>
+                  <TextFormatToolbar
+                    value={editFormData.textOptions}
+                    onChange={(nextOpts) => setEditFormData({ ...editFormData, textOptions: nextOpts })}
+                  />
+                  <textarea
+                    className="form-control text-area-editor"
+                    rows={4}
+                    value={editFormData.textNote ?? editFormData.product ?? ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, textNote: e.target.value })}
+                    placeholder="Nhập nội dung text nhiều dòng..."
+                  />
+                </div>
+              ) : editFormData.nameLayout === 'two_lines' || editFormData.nameLayout === 'two_lines_bottom_price' ? (
                 <>
                   <div className="form-group">
                     <label className="form-label" style={{ color: '#0284c7' }}>
@@ -2545,32 +2903,34 @@ export default function App() {
                 </div>
               )}
 
-              <div className="form-row-2 form-group">
-                <div>
-                  <label className="form-label">Giá bán</label>
-                  <div className="input-with-suffix">
+              {editFormData.nameLayout !== 'text_only' && (
+                <div className="form-row-2 form-group">
+                  <div>
+                    <label className="form-label">Giá bán</label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={editFormData.price || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, price: formatPriceNumber(e.target.value, editFormData.price) })}
+                        placeholder="1,000,000"
+                        maxLength={18}
+                      />
+                      <span className="input-suffix-badge">₫</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">Mã vạch Barcode</label>
                     <input
                       type="text"
-                      className="form-control"
-                      value={editFormData.price || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, price: formatPriceNumber(e.target.value, editFormData.price) })}
-                      placeholder="1,000,000"
-                      maxLength={18}
+                      className="form-control mono"
+                      value={editFormData.barcode}
+                      onChange={(e) => setEditFormData({ ...editFormData, barcode: e.target.value.replace(/[^0-9A-Za-z._-]/g, '') })}
+                      placeholder="8938503890045"
                     />
-                    <span className="input-suffix-badge">₫</span>
                   </div>
                 </div>
-                <div>
-                  <label className="form-label">Mã vạch Barcode</label>
-                  <input
-                    type="text"
-                    className="form-control mono"
-                    value={editFormData.barcode}
-                    onChange={(e) => setEditFormData({ ...editFormData, barcode: e.target.value.replace(/[^0-9A-Za-z._-]/g, '') })}
-                    placeholder="8938503890045"
-                  />
-                </div>
-              </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Số hàng in mặc định</label>
@@ -2680,104 +3040,115 @@ export default function App() {
           <div className="modal-card" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                ⚙️ Tùy Chỉnh Vị Trí In & Lề Tem
+                {layoutConfigMeta ? layoutConfigMeta.modalTitle : '⚙️ Tùy Chỉnh Vị Trí In & Lề Tem'}
               </span>
               <button type="button" className="modal-close" onClick={() => setShowOffsetModal(false)}>✕</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px' }}>
-              {/* SECTION 1: Dòng nhỏ phía trên (Mẫu 2 dòng) */}
-              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ fontWeight: 700, color: '#0369a1', fontSize: '13px' }}>
-                    ↕ Vị Trí Dòng Nhỏ (Mẫu 2 Dòng)
-                  </span>
-                  <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
-                    Đã khóa chuẩn: -6 dot
-                  </span>
-                </div>
-                <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#475467', lineHeight: 1.5 }}>
-                  Tinh chỉnh xê dịch lên/xuống của dòng mô tả nhỏ phía trên mép tem.
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                  <div className="offset-stepper">
-                    <button
-                      type="button"
-                      className="btn-stepper"
-                      title="Xích dòng nhỏ lên trên"
-                      onClick={() => {
-                        const nextVal = Math.max(-10, (config.subTextOffsetY ?? -6) - 1);
-                        setConfig(c => ({ ...c, subTextOffsetY: nextVal }));
-                      }}
-                    >
-                      ▲ Lên
-                    </button>
-                    <span className="offset-value-badge" title="Độ lệch so với chuẩn">
-                      {(config.subTextOffsetY ?? -6) > 0 ? `+${config.subTextOffsetY ?? -6}` : (config.subTextOffsetY ?? -6)} dot
-                    </span>
-                    <button
-                      type="button"
-                      className="btn-stepper"
-                      title="Xích dòng nhỏ xuống dưới"
-                      onClick={() => {
-                        const nextVal = Math.min(10, (config.subTextOffsetY ?? -6) + 1);
-                        setConfig(c => ({ ...c, subTextOffsetY: nextVal }));
-                      }}
-                    >
-                      ▼ Xuống
-                    </button>
+              {layoutConfigMeta && (
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px 14px', color: '#1e3a8a', fontSize: '12px', lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 700, marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <span>📝 Căn Chỉnh Riêng — {layoutConfigMeta.shortTag}</span>
+                    <span className="tab-badge" style={{ background: '#dbeafe', color: '#1d4ed8', whiteSpace: 'nowrap' }}>{layoutConfigMeta.badge}</span>
                   </div>
-
-                  {(config.subTextOffsetY ?? -6) !== -6 && (
-                    <button
-                      type="button"
-                      className="btn-reset-offset"
-                      onClick={() => {
-                        setConfig(c => ({ ...c, subTextOffsetY: -6 }));
-                        triggerToast('↺ Đã đặt lại vị trí dòng nhỏ về chuẩn (-6 dot)');
-                      }}
-                      title="Đặt lại về thông số chuẩn đã khóa"
-                    >
-                      ↺ Về chuẩn -6 dot
-                    </button>
-                  )}
+                  {layoutConfigMeta.note}
                 </div>
-              </div>
+              )}
 
-              {/* SECTION 2: Tọa độ bù lệch cơ học máy in (Offsets toàn cục) */}
+              {!isTextOnlyMode && (
+                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontWeight: 700, color: '#0369a1', fontSize: '13px' }}>
+                      ↕ Vị Trí Dòng Nhỏ (Mẫu 2 Dòng)
+                    </span>
+                    <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                      Đã khóa chuẩn: -6 dot
+                    </span>
+                  </div>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#475467', lineHeight: 1.5 }}>
+                    Tinh chỉnh xê dịch lên/xuống của dòng mô tả nhỏ phía trên mép tem.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div className="offset-stepper">
+                      <button
+                        type="button"
+                        className="btn-stepper"
+                        title="Xích dòng nhỏ lên trên"
+                        onClick={() => {
+                          const nextVal = Math.max(-10, (activeOffsetCfg.subTextOffsetY ?? -6) - 1);
+                          updateOffsetCfg(c => ({ ...c, subTextOffsetY: nextVal }));
+                        }}
+                      >
+                        ▲ Lên
+                      </button>
+                      <span className="offset-value-badge" title="Độ lệch so với chuẩn">
+                        {(activeOffsetCfg.subTextOffsetY ?? -6) > 0 ? `+${activeOffsetCfg.subTextOffsetY ?? -6}` : (activeOffsetCfg.subTextOffsetY ?? -6)} dot
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-stepper"
+                        title="Xích dòng nhỏ xuống dưới"
+                        onClick={() => {
+                          const nextVal = Math.min(10, (activeOffsetCfg.subTextOffsetY ?? -6) + 1);
+                          updateOffsetCfg(c => ({ ...c, subTextOffsetY: nextVal }));
+                        }}
+                      >
+                        ▼ Xuống
+                      </button>
+                    </div>
+
+                    {(activeOffsetCfg.subTextOffsetY ?? -6) !== -6 && (
+                      <button
+                        type="button"
+                        className="btn-reset-offset"
+                        onClick={() => {
+                          updateOffsetCfg(c => ({ ...c, subTextOffsetY: -6 }));
+                          triggerToast('↺ Đã đặt lại vị trí dòng nhỏ về chuẩn (-6 dot)');
+                        }}
+                        title="Đặt lại về thông số chuẩn đã khóa"
+                      >
+                        ↺ Về chuẩn -6 dot
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 2: Tọa độ bù lệch cơ học máy in (theo mẫu đang chọn) */}
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px' }}>
-                    🎯 Tọa Độ Căn Khung & Bù Lệch Cơ Học (Toàn Cục)
+                    {layoutConfigMeta ? layoutConfigMeta.sectionTitle : '🎯 Tọa Độ Căn Khung & Bù Lệch Cơ Học (Toàn Cục)'}
                   </span>
                 </div>
 
                 <div className="form-row-2 form-group" style={{ marginBottom: '10px' }}>
                   <div>
                     <label className="form-label" style={{ fontSize: '12px' }}>
-                      Dời ngang X ({config.offsetX > 0 ? `+${config.offsetX}` : config.offsetX} mm)
+                      Dời ngang X ({activeOffsetCfg.offsetX > 0 ? `+${activeOffsetCfg.offsetX}` : activeOffsetCfg.offsetX} mm)
                     </label>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button
                         type="button"
                         className="btn-preset"
                         style={{ flex: 1, padding: '5px' }}
-                        onClick={() => setConfig(c => ({ ...c, offsetX: Math.round((c.offsetX - 0.5) * 10) / 10 }))}
+                        onClick={() => updateOffsetCfg(c => ({ ...c, offsetX: Math.round(((c.offsetX ?? 0) - 0.5) * 10) / 10 }))}
                       >
                         ◄ Trái
                       </button>
                       <input
                         type="number"
                         step={0.1}
-                        value={config.offsetX}
-                        onChange={(e) => setConfig(c => ({ ...c, offsetX: Number(e.target.value) }))}
+                        value={activeOffsetCfg.offsetX}
+                        onChange={(e) => updateOffsetCfg(c => ({ ...c, offsetX: Number(e.target.value) }))}
                         style={{ width: '50px', textAlign: 'center', fontSize: '12px', padding: '4px' }}
                       />
                       <button
                         type="button"
                         className="btn-preset"
                         style={{ flex: 1, padding: '5px' }}
-                        onClick={() => setConfig(c => ({ ...c, offsetX: Math.round((c.offsetX + 0.5) * 10) / 10 }))}
+                        onClick={() => updateOffsetCfg(c => ({ ...c, offsetX: Math.round(((c.offsetX ?? 0) + 0.5) * 10) / 10 }))}
                       >
                         Phải ►
                       </button>
@@ -2786,29 +3157,29 @@ export default function App() {
 
                   <div>
                     <label className="form-label" style={{ fontSize: '12px' }}>
-                      Dời dọc Y ({config.offsetY > 0 ? `+${config.offsetY}` : config.offsetY} mm)
+                      Dời dọc Y ({activeOffsetCfg.offsetY > 0 ? `+${activeOffsetCfg.offsetY}` : activeOffsetCfg.offsetY} mm)
                     </label>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button
                         type="button"
                         className="btn-preset"
                         style={{ flex: 1, padding: '5px' }}
-                        onClick={() => setConfig(c => ({ ...c, offsetY: Math.round((c.offsetY - 0.5) * 10) / 10 }))}
+                        onClick={() => updateOffsetCfg(c => ({ ...c, offsetY: Math.round(((c.offsetY ?? 0) - 0.5) * 10) / 10 }))}
                       >
                         ▲ Lên
                       </button>
                       <input
                         type="number"
                         step={0.1}
-                        value={config.offsetY}
-                        onChange={(e) => setConfig(c => ({ ...c, offsetY: Number(e.target.value) }))}
+                        value={activeOffsetCfg.offsetY}
+                        onChange={(e) => updateOffsetCfg(c => ({ ...c, offsetY: Number(e.target.value) }))}
                         style={{ width: '50px', textAlign: 'center', fontSize: '12px', padding: '4px' }}
                       />
                       <button
                         type="button"
                         className="btn-preset"
                         style={{ flex: 1, padding: '5px' }}
-                        onClick={() => setConfig(c => ({ ...c, offsetY: Math.round((c.offsetY + 0.5) * 10) / 10 }))}
+                        onClick={() => updateOffsetCfg(c => ({ ...c, offsetY: Math.round(((c.offsetY ?? 0) + 0.5) * 10) / 10 }))}
                       >
                         Xuống ▼
                       </button>
@@ -2818,28 +3189,28 @@ export default function App() {
 
                 <div className="form-row-2 form-group" style={{ margin: 0 }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '12px' }}>Khoảng cách rãnh 2 tem: {config.columnGap} mm</label>
+                    <label className="form-label" style={{ fontSize: '12px' }}>Khoảng cách rãnh 2 tem: {activeOffsetCfg.columnGap} mm</label>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button
                         type="button"
                         className="btn-preset"
                         style={{ flex: 1 }}
-                        onClick={() => setConfig(c => ({ ...c, columnGap: Math.max(0, Math.round((c.columnGap - 0.2) * 10) / 10) }))}
+                        onClick={() => updateOffsetCfg(c => ({ ...c, columnGap: Math.max(0, Math.round(((c.columnGap ?? 0) - 0.2) * 10) / 10) }))}
                       >
                         ◄ Kéo sát (-0.2)
                       </button>
                       <input
                         type="number"
                         step={0.1}
-                        value={config.columnGap}
-                        onChange={(e) => setConfig(c => ({ ...c, columnGap: Number(e.target.value) }))}
+                        value={activeOffsetCfg.columnGap}
+                        onChange={(e) => updateOffsetCfg(c => ({ ...c, columnGap: Number(e.target.value) }))}
                         style={{ width: '50px', textAlign: 'center', fontSize: '12px', padding: '4px' }}
                       />
                       <button
                         type="button"
                         className="btn-preset"
                         style={{ flex: 1 }}
-                        onClick={() => setConfig(c => ({ ...c, columnGap: Math.round((c.columnGap + 0.2) * 10) / 10 }))}
+                        onClick={() => updateOffsetCfg(c => ({ ...c, columnGap: Math.round(((c.columnGap ?? 0) + 0.2) * 10) / 10 }))}
                       >
                         Rộng (+0.2) ►
                       </button>
@@ -2852,8 +3223,8 @@ export default function App() {
                       type="number"
                       step={0.1}
                       className="form-control"
-                      value={config.gap}
-                      onChange={(e) => setConfig(c => ({ ...c, gap: Number(e.target.value) }))}
+                      value={activeOffsetCfg.gap}
+                      onChange={(e) => updateOffsetCfg(c => ({ ...c, gap: Number(e.target.value) }))}
                     />
                   </div>
                 </div>
@@ -2864,23 +3235,16 @@ export default function App() {
               <button
                 type="button"
                 className="btn-subtle"
-                onClick={() => {
-                  resetDefaultConfig();
-                  setShowOffsetModal(false);
-                }}
+                onClick={handleResetOffsetModal}
               >
-                ↺ Khôi Phục Mặc Định
+                {layoutConfigMeta ? layoutConfigMeta.resetLabel : '↺ Khôi Phục Mặc Định'}
               </button>
 
               <button
                 type="button"
                 className="btn-primary-print"
                 style={{ width: 'auto', padding: '8px 20px', margin: 0 }}
-                onClick={() => {
-                  handleSaveConfig();
-                  setShowOffsetModal(false);
-                  triggerToast('🔒 Đã lưu và khóa cấu hình vào máy tính!');
-                }}
+                onClick={handleSaveOffsetModal}
               >
                 💾 Lưu & Khóa Cấu Hình
               </button>
